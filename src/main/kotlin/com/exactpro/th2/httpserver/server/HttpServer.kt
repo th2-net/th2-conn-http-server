@@ -13,7 +13,7 @@
 
 package com.exactpro.th2.httpserver.server
 
-import com.exactpro.th2.httpserver.api.IRouter
+import com.exactpro.th2.httpserver.api.IResponseManager
 
 
 interface HttpServer {
@@ -26,7 +26,7 @@ interface HttpServer {
      *
      * @param router request router
      */
-    fun start(router: IRouter)
+    fun start(responseManager: IResponseManager)
 
     /**
      * Stop the server.

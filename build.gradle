@@ -15,12 +15,15 @@ plugins {
     id 'com.jfrog.artifactory' version '4.15.1'
     id 'org.jetbrains.kotlin.jvm' version "${kotlin_version}"
     id "com.github.harbby.gradle.serviceloader" version '1.1.5'
+    id 'com.palantir.docker' version '0.25.0' apply false
 }
 
 apply plugin: 'kotlin'
 apply plugin: 'application'
 apply plugin: 'maven-publish'
 apply plugin: 'com.jfrog.artifactory'
+apply plugin: 'com.palantir.docker'
+
 
 ext {
     sharedDir = file("${project.rootDir}/shared")
@@ -108,7 +111,7 @@ dependencies {
 }
 
 application {
-    mainClassName 'com.exactpro.th2.http.Main'
+    mainClassName 'com.exactpro.th2.httpserver.Main'
 }
 
 compileKotlin {
@@ -127,9 +130,22 @@ serviceLoader {
     serviceInterface 'com.exactpro.th2.httpserver.api.IRequestHandler'
     serviceInterface 'com.exactpro.th2.httpserver.api.IResponseHandler'
     serviceInterface 'com.exactpro.th2.httpserver.api.IResponseManager'
-    serviceInterface 'com.exactpro.th2.httpserver.api.IRouter'
 }
 
 test {
     useJUnitPlatform()
+}
+
+applicationName = 'service'
+
+distTar {
+    archiveName "${applicationName}.tar"
+}
+
+dockerPrepare {
+    dependsOn distTar
+}
+
+docker {
+    copySpec.from(tarTree("$buildDir/distributions/${applicationName}.tar"))
 }

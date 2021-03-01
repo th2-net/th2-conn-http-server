@@ -18,19 +18,19 @@ import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.EventBatch
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.factory.CommonFactory
+import com.exactpro.th2.common.schema.message.MessageListener
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.storeEvent
 import com.exactpro.th2.httpserver.api.IRequestHandler
 import com.exactpro.th2.httpserver.api.IResponseHandler
 import com.exactpro.th2.httpserver.api.IResponseManager
-import com.exactpro.th2.httpserver.api.IRouter
 import com.exactpro.th2.httpserver.api.impl.BasicRequestHandler
 import com.exactpro.th2.httpserver.api.impl.BasicResponseHandler
 import com.exactpro.th2.httpserver.api.impl.BasicResponseManager
-import com.exactpro.th2.httpserver.api.impl.BasicRouterRealization
 import com.exactpro.th2.httpserver.server.Th2HttpServer
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.options.Th2ServerOptions
+import com.exactpro.th2.httpserver.util.toPrettyString
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import mu.KotlinLogging
@@ -64,7 +64,6 @@ fun main(args: Array<String>) = try {
     val requestHandler = load<IRequestHandler>(BasicRequestHandler::class.java)
     val responseHandler = load<IResponseHandler>(BasicResponseHandler::class.java)
     val responseManager = load<IResponseManager>(BasicResponseManager::class.java)
-    val router = load<IRouter>(BasicRouterRealization::class.java)
 
     val mapper = JsonMapper.builder()
         .addModule(KotlinModule(nullIsSameAsDefault = true))
@@ -72,8 +71,10 @@ fun main(args: Array<String>) = try {
 
     val settings = factory.getCustomConfiguration(Settings::class.java, mapper)
 
-    run(settings, responseManager, responseHandler, requestHandler, router,
-        factory.eventBatchRouter, factory.messageRouterMessageGroupBatch) { resource, destructor ->
+    run(
+        settings, responseManager, responseHandler, requestHandler,
+        factory.eventBatchRouter, factory.messageRouterMessageGroupBatch
+    ) { resource, destructor ->
         resources += resource to destructor
     }
 } catch (e: Exception) {
@@ -81,14 +82,16 @@ fun main(args: Array<String>) = try {
     e.printStackTrace()
 }
 
-fun run (settings: Settings,
-         responseManager: IResponseManager,
-         responseHandler: IResponseHandler,
-         requestHandler : IRequestHandler,
-         router: IRouter,
-         eventRouter: MessageRouter<EventBatch>,
-         messageRouter: MessageRouter<MessageGroupBatch>,
-         registerResource: (name: String, destructor: () -> Unit) -> Unit) {
+fun run(
+    settings: Settings,
+    responseManager: IResponseManager,
+    responseHandler: IResponseHandler,
+    requestHandler: IRequestHandler,
+    eventRouter: MessageRouter<EventBatch>,
+    messageRouter: MessageRouter<MessageGroupBatch>,
+    registerResource: (name: String, destructor: () -> Unit) -> Unit
+) {
+    val connectionId = ConnectionID.newBuilder().setSessionAlias(settings.sessionAlias).build()
 
     val rootEventId = eventRouter.storeEvent(Event.start().apply {
         endTimestamp()
@@ -96,18 +99,13 @@ fun run (settings: Settings,
         type("Microservice")
     }).id
 
-    val connectionId = ConnectionID.newBuilder().setSessionAlias(settings.sessionAlias).build()
-
     val options: ServerOptions = Th2ServerOptions(settings.port,
-        messageRouter,
-        connectionId,
-        {req: RawHttpRequest, res: RawHttpResponse<Void> -> responseManager.prepareResponse(req, res)},
-        {req: RawHttpRequest, res: RawHttpResponse<*> -> responseHandler.onResponse(req, res)}
+        { req: RawHttpRequest, res: RawHttpResponse<*> -> responseHandler.onResponse(req, res) }
     ) { req: RawHttpRequest -> requestHandler.onRequest(req) }
 
     responseManager.runCatching {
         registerResource("response-manager", ::close)
-        init()
+        init(IResponseManager.ResponseManagerContext(connectionId, messageRouter))
     }.onFailure {
         LOGGER.error(it) { "Failed to init response-manager" }
         eventRouter.storeEvent(rootEventId, "Failed to init response-manager", "Error", it)
@@ -132,21 +130,31 @@ fun run (settings: Settings,
         throw it
     }
 
-    router.runCatching {
-        registerResource("router", ::close)
-        init()
+    val listener = MessageListener<MessageGroupBatch> { _, message ->
+        message.groupsList.forEach { group ->
+            group.runCatching(responseManager::handleResponse).recoverCatching {
+                LOGGER.error(it) { "Failed to handle message group: ${group.toPrettyString()}" }
+                eventRouter.storeEvent(rootEventId, "Failed to handle raw batch: ${group.toPrettyString()}", "Error", it)
+            }
+        }
+    }
+
+    runCatching {
+        checkNotNull(messageRouter.subscribe(listener, "send"))
+    }.onSuccess { monitor ->
+        registerResource("raw-monitor", monitor::unsubscribe)
     }.onFailure {
-        LOGGER.error(it) { "Failed to init router" }
-        eventRouter.storeEvent(rootEventId, "Failed to init router", "Error", it)
-        throw it
+        throw IllegalStateException("Failed to subscribe to input queue", it)
     }
 
     val server: Th2HttpServer = Th2HttpServer(options).apply {
-        this.start (router)
+        this.start(responseManager)
         registerResource("server", ::stop)
     }
 
-    while (server.isRunning()) { Thread.sleep(150L) }
+    while (server.isRunning()) {
+        Thread.sleep(150L)
+    }
 }
 
 data class Settings(

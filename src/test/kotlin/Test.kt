@@ -11,6 +11,7 @@
  * limitations under the License.
  */
 
+import com.exactpro.th2.httpserver.api.impl.BasicResponseManager
 import com.exactpro.th2.httpserver.server.Th2HttpServer
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -19,19 +20,14 @@ import org.junit.jupiter.api.Test
 import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpResponse
 import rawhttp.core.client.TcpRawHttpClient
-import rawhttp.core.server.TcpRawHttpServer
 import testimpl.TestClientOptions
-import testimpl.TestRouter
+import testimpl.TestResponseManager
 import testimpl.TestServerOptions
-import java.io.IOException
-import java.util.*
 
 class Test {
     companion object {
         private val th2server = Th2HttpServer(TestServerOptions())
-        private val standardServer = TcpRawHttpServer(GlobalVariables.port+1)
-
-        val request =  {port: Int -> RawHttp().parseRequest(
+        private val request =  {port: Int -> RawHttp().parseRequest(
             """
             GET / HTTP/1.1
             Host: localhost:$port
@@ -40,71 +36,34 @@ class Test {
         )}
 
         @BeforeAll @JvmStatic fun setUp() {
-            this.th2server.start(TestRouter())
-            this.standardServer.start {
-                val body = "Hello RawHTTP!"
-                val response: RawHttpResponse<*> = RawHttp().parseResponse(
-                  """
-                  HTTP/1.1 200 OK
-                  Content-Type: plain/text
-                  Content-Length: ${body.length}
-                  
-                  $body
-                  """.trimIndent()
-                )
-                Optional.of(response)
-            }
+            this.th2server.start(TestResponseManager())
         }
 
         @AfterAll @JvmStatic fun finish() {
             this.th2server.stop()
-            this.standardServer.stop()
         }
 
-    }
-
-    @Test fun testAgainstDefault() {
-        val client = TcpRawHttpClient(TestClientOptions())
-
-
-        val th2request = request(GlobalVariables.port)
-
-        val standardRequest = request(GlobalVariables.port+1)
-
-        for (i in 0..4) {
-            val th2response = try {
-                client.send(th2request).eagerly()
-            } catch (e: IOException) {
-                null
-            }
-            val standardResponse = try {
-                client.send(standardRequest).eagerly()
-            } catch (e: IOException) {
-                null
-            }
-
-            assertEquals(th2response?.statusCode, standardResponse?.statusCode)
-            Thread.sleep(150L)
-        }
-        client.close()
     }
 
     @Test fun testTh2CodeHttp() {
         val client = TcpRawHttpClient(TestClientOptions())
         val th2request = request(GlobalVariables.port)
 
-        for (i in 0..4) {
-            var response: RawHttpResponse<*>?
+        var response: RawHttpResponse<*>? = null
 
 
-            client.run {
-                response = send(th2request).eagerly()
-
-                Thread.sleep(150L)
+        client.run {
+            while (response==null) {
+                response = try {
+                    send(th2request).eagerly()
+                } catch (e: Exception) {
+                    null
+                }
             }
-
-            assertEquals(response?.statusCode, 200)
+            //Thread.sleep(150L)
         }
+
+        assertEquals(response?.statusCode, 500)
         client.close()
     }
 

@@ -53,7 +53,7 @@ interface ServerOptions {
         }
     }
 
-    fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Void>): RawHttpResponse<Void> {
+    fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<*>): RawHttpResponse<*> {
         return response
     }
 

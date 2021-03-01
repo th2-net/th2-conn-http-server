@@ -11,7 +11,7 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.httpserver.server.response
+package com.exactpro.th2.httpserver.server.responses
 
 import rawhttp.core.EagerHttpResponse
 import rawhttp.core.HttpVersion

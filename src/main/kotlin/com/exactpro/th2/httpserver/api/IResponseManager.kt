@@ -13,13 +13,23 @@
 
 package com.exactpro.th2.httpserver.api
 
+import com.exactpro.th2.common.grpc.ConnectionID
+import com.exactpro.th2.common.grpc.MessageGroup
+import com.exactpro.th2.common.grpc.MessageGroupBatch
+import com.exactpro.th2.common.schema.message.MessageRouter
+import com.exactpro.th2.common.schema.message.impl.rabbitmq.AbstractRabbitMessageRouter
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
+import rawhttp.core.client.RawHttpClient
+import java.net.Socket
 
 interface IResponseManager : AutoCloseable {
 
-    fun init()
+    fun init(value: ResponseManagerContext)
 
-    fun prepareResponse(request: RawHttpRequest,response: RawHttpResponse<Void>): RawHttpResponse<Void>
+    fun handleRequest(request: RawHttpRequest, answer: (RawHttpResponse<*>) -> Unit)
 
+    fun handleResponse(request: MessageGroup)
+
+    data class ResponseManagerContext(val connectionID: ConnectionID, val messageRouter: MessageRouter<MessageGroupBatch>)
 }

@@ -13,12 +13,11 @@
 
 package com.exactpro.th2.httpserver.server
 
-import com.exactpro.th2.httpserver.api.IRouter
+import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import rawhttp.core.*
 import rawhttp.core.body.BodyReader
 import rawhttp.core.errors.InvalidHttpRequest
-import com.exactpro.th2.httpserver.server.response.HttpResponses
 import java.io.IOException
 import java.lang.Exception
 import java.net.InetSocketAddress
@@ -29,10 +28,11 @@ import java.util.*
 import java.util.concurrent.ExecutorService
 
 
-internal class ServerManager (private val router: IRouter, private val options: ServerOptions) {
+internal class ServerManager (private val responseManager: IResponseManager, private val options: ServerOptions) {
     private val socket: ServerSocket = options.getServerSocket()
     private val executorService: ExecutorService = options.createExecutorService()
     private val http: RawHttp = options.getRawHttp()
+
     private fun start() {
         Thread({
             var failedAccepts = 0
@@ -71,31 +71,15 @@ internal class ServerManager (private val router: IRouter, private val options: 
 
                 serverWillCloseConnection = connectionOption.map { string: String? -> "close".equals(string, ignoreCase = true) }.orElse(false)
 
-                var response: RawHttpResponse<*>? = null
-
-                if (request.expectContinue() && !request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1)) {
-                    val interimResponse = router.continueResponse(request.startLine, request.headers) ?: HttpResponses.get100ContinueResponse()
-                    if (interimResponse.statusCode == 100) {
-                        // tell the client that we shall continue
-                        interimResponse.writeTo(client.getOutputStream())
-                    } else {
-                        // if we don't accept the request body, we must close the connection
-                        serverWillCloseConnection = true
-                        response = interimResponse
-                    }
-                }
-
                 if (!serverWillCloseConnection) {
                     serverWillCloseConnection = !keepAlive(request.startLine.httpVersion, connectionOption)
                 }
 
-                if (response == null) {
-                    // callback
-                    router.route(requestEagerly) { res: RawHttpResponse<*> ->
-                        res.writeTo(client.getOutputStream())
-                        options.onResponse(requestEagerly, res)
-                        closeBodyOf(res)
-                    }
+                responseManager.handleRequest(requestEagerly) { res: RawHttpResponse<*> ->
+                    val response = options.prepareResponse(requestEagerly, res)
+                    response.writeTo(client.getOutputStream())
+                    options.onResponse(requestEagerly, response)
+                    closeBodyOf(response)
                 }
             } catch (e: Exception) {
                 if (e !is SocketException) {

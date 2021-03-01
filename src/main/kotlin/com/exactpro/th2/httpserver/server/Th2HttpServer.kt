@@ -13,7 +13,7 @@
 
 package com.exactpro.th2.httpserver.server
 
-import com.exactpro.th2.httpserver.api.IRouter
+import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import mu.KotlinLogging
 import java.util.concurrent.atomic.AtomicReference
@@ -22,10 +22,10 @@ class Th2HttpServer(private val options: ServerOptions) : HttpServer {
     private val logger = KotlinLogging.logger {}
     private val routerRef = AtomicReference<ServerManager>()
 
-    override fun start(router: IRouter) {
+    override fun start(responseManager: IResponseManager) {
         runCatching { stop() }
         runCatching {
-            routerRef.set(ServerManager(router, options))
+            routerRef.set(ServerManager(responseManager, options))
             logger.info("Server is started")
         }.onFailure {
             throw java.lang.RuntimeException(it)

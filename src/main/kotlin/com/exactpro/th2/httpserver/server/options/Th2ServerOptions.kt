@@ -28,17 +28,10 @@ import java.util.concurrent.atomic.AtomicLong
 
 class Th2ServerOptions(
     private val port: Int,
-    private val messageRouter: MessageRouter<MessageGroupBatch>,
-    private val connID: ConnectionID,
-    private val prepareRes: (RawHttpRequest, RawHttpResponse<Void>) -> RawHttpResponse<Void>,
     private val handleResponse: (RawHttpRequest, RawHttpResponse<*>) -> Unit,
-    private val handleRequest: (RawHttpRequest) -> Unit) : ServerOptions  {
+    private val handleRequest: (RawHttpRequest) -> Unit) : ServerOptions {
 
     private val logger = KotlinLogging.logger {}
-
-    private val generateSequence = Instant.now().run {
-        AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
-    }::incrementAndGet
 
     override fun getServerSocket(): ServerSocket {
         logger.info("Server socket on port:${port} created")
@@ -46,16 +39,10 @@ class Th2ServerOptions(
     }
 
     override fun onResponse(request: RawHttpRequest, response: RawHttpResponse<*>) {
-        messageRouter.send(response.toBatch(connID, generateSequence(), request), QueueAttribute.FIRST.toString())
         handleResponse(request, response)
     }
 
     override fun onRequest(request: RawHttpRequest) {
-        messageRouter.send(request.toBatch(connID, generateSequence()), QueueAttribute.SECOND.toString())
         handleRequest(request)
-    }
-
-    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Void>): RawHttpResponse<Void> {
-        return this.prepareRes(request, response)
     }
 }
