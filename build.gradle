@@ -18,6 +18,10 @@ plugins {
     id 'com.palantir.docker' version '0.25.0' apply false
 }
 
+plugins {
+    id 'application'
+}
+
 apply plugin: 'kotlin'
 apply plugin: 'application'
 apply plugin: 'maven-publish'
@@ -71,7 +75,8 @@ jar {
                 'Implementation-Title': project.archivesBaseName,
                 'Implementation-Vendor': 'Exactpro Systems LLC',
                 'Implementation-Vendor-Id': 'com.exactpro',
-                'Implementation-Version': project.version
+                'Implementation-Version': project.version,
+                'Main-Class':'com.exactpro.th2.httpserver.Main'
         )
     }
 }
@@ -98,8 +103,8 @@ artifactory {
 dependencies {
     implementation 'com.exactpro.th2:common:2.7.0-th2-1150-+'
 
-    implementation group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.30'
-    implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
+    implementation 'org.slf4j:slf4j-log4j12'
+    implementation 'org.slf4j:slf4j-api'
 
     implementation group: 'org.jetbrains.kotlin', name: 'kotlin-stdlib-jdk8', version: kotlin_version
     implementation group: 'org.jetbrains.kotlin', name: 'kotlin-reflect', version: kotlin_version

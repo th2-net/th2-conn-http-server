@@ -63,7 +63,7 @@ class Test {
             //Thread.sleep(150L)
         }
 
-        assertEquals(response?.statusCode, 500)
+        assertEquals(response?.statusCode, 200)
         client.close()
     }
 

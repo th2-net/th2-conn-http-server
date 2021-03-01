@@ -17,6 +17,7 @@ import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.server.headers.DateHeaderProvider
 import com.exactpro.th2.httpserver.server.responses.HttpResponses
+import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpHeaders
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
@@ -31,7 +32,11 @@ import kotlin.collections.HashMap
 class TestResponseManager : IResponseManager {
     class TimerTask(val answer: (RawHttpResponse<*>) -> Unit ): java.util.TimerTask() {
         override fun run() {
-            answer(HttpResponses.SERVER_ERROR_500_HTTP1_1)
+            answer(RawHttp().parseResponse("HTTP/1.1 200 OK\n" +
+                    "Content-Type: text/plain\n" +
+                    "Content-Length: 9\n" +
+                    "\n" +
+                    "something"))
         }
     }
 
