@@ -13,6 +13,7 @@
 
 package com.exactpro.th2.httpserver.api.impl
 
+import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.Message
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.RawMessage
@@ -52,8 +53,8 @@ class BasicResponseManager : IResponseManager {
         val sequence = generateSequence()
         dialogs[uuid] = answer
         logger.debug("Stored dialog: $uuid")
-        val messageGroup = request.toBatch(context.connectionID, sequence, uuid)
-        context.messageRouter.send(messageGroup, QueueAttribute.SECOND.toString())
+        val messageGroup = request.toBatch(context.connectionID, Direction.SECOND, sequence, uuid)
+        context.messageRouter.send(messageGroup, QueueAttribute.FIRST.toString())
         logger.debug("Send on alias: ${context.connectionID.sessionAlias}")
     }
 
