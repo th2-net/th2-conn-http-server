@@ -51,8 +51,10 @@ class BasicResponseManager : IResponseManager {
         val uuid = UUID.randomUUID().toString()
         val sequence = generateSequence()
         dialogs[uuid] = answer
-        logger.debug("Stored dialog: $sequence")
-        context.messageRouter.send(request.toBatch(context.connectionID, sequence, uuid), QueueAttribute.FIRST.toString())
+        logger.debug("Stored dialog: $uuid")
+        val messageGroup = request.toBatch(context.connectionID, sequence, uuid)
+        context.messageRouter.send(messageGroup, QueueAttribute.FIRST.toString())
+        logger.debug("Send on alias: ${context.connectionID.sessionAlias}")
     }
 
     override fun handleResponse(messages: MessageGroup) {

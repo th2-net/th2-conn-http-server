@@ -162,8 +162,8 @@ private fun ByteArrayOutputStream.toBatch(
     }
 }.toBatch()
 
-private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, id: String): MessageGroupBatch {
-    val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString(), "uuid" to id) }
+private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, uuid: String): MessageGroupBatch {
+    val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString(), "uuid" to uuid) }
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
         headers.writeTo(this)
