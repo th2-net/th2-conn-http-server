@@ -15,6 +15,7 @@ package com.exactpro.th2.httpserver.server
 
 import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.server.options.ServerOptions
+import mu.KotlinLogging
 import rawhttp.core.*
 import rawhttp.core.body.BodyReader
 import rawhttp.core.errors.InvalidHttpRequest
@@ -27,8 +28,10 @@ import java.net.SocketException
 import java.util.*
 import java.util.concurrent.ExecutorService
 
+private val LOGGER = KotlinLogging.logger { }
 
 internal class ServerManager (private val responseManager: IResponseManager, private val options: ServerOptions) {
+
     private val socket: ServerSocket = options.getServerSocket()
     private val executorService: ExecutorService = options.createExecutorService()
     private val http: RawHttp = options.getRawHttp()
@@ -78,6 +81,7 @@ internal class ServerManager (private val responseManager: IResponseManager, pri
                 responseManager.handleRequest(requestEagerly) { res: RawHttpResponse<*> ->
                     val response = options.prepareResponse(requestEagerly, res)
                     response.writeTo(client.getOutputStream())
+                    LOGGER.debug("Response $response was send to client")
                     options.onResponse(requestEagerly, response)
                     closeBodyOf(response)
                 }

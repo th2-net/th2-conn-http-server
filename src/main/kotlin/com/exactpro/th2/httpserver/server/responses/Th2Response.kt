@@ -21,9 +21,11 @@ import com.exactpro.th2.common.message.getInt
 import com.exactpro.th2.common.message.getList
 import com.exactpro.th2.common.message.getString
 import com.exactpro.th2.httpserver.util.toPrettyString
-import com.google.protobuf.MessageOrBuilder
-import com.google.protobuf.util.JsonFormat
 import rawhttp.core.*
+import rawhttp.core.body.BodyReader
+import rawhttp.core.body.BytesBody
+import rawhttp.core.body.EagerBodyReader
+import java.nio.charset.StandardCharsets
 
 const val RESPONSE_MESSAGE = "Response"
 
@@ -39,11 +41,21 @@ const val REASON_PROPERTY = HEADERS_REASON_FIELD
 const val DEFAULT_CODE = 200
 const val DEFAULT_REASON = "OK"
 
-class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, val uuid: String?) :
-    RawHttpResponse<MessageGroup>(null, null, statusLine, headers, null) {
+class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, bodyReader: BodyReader, val uuid: String?) :
+    RawHttpResponse<MessageGroup>(null, null, statusLine, headers, bodyReader) {
+
+    init {
+
+    }
 
     class Builder {
-        private val additionalMetadata = hashMapOf<String,String>()
+        val BASIC_HEADERS = RawHttpHeaders.newBuilderSkippingValidation()
+            .with("Content-Type", "application")
+            .with("Cache-Control", "no-cache")
+            .with("Pragma", "no-cache")
+            .build()
+
+        private val metadata = hashMapOf<String,String>()
 
         private var head: Message = Message.getDefaultInstance()
         private var body: RawMessage = RawMessage.getDefaultInstance()
@@ -59,7 +71,7 @@ class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, val uuid: S
         }
 
         fun with(key: String, value: String ) : Builder{
-            additionalMetadata[key] = value
+            metadata[key] = value
             return this
         }
 
@@ -83,14 +95,14 @@ class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, val uuid: S
         }
 
         fun build(): Th2Response {
-            val metadata = body.metadata.propertiesMap
-            metadata.putAll(additionalMetadata)
+            metadata.putAll(body.metadata.propertiesMap)
 
             val code: Int = head.getInt(HEADERS_CODE_FIELD) ?: metadata[CODE_PROPERTY]?.toInt() ?: DEFAULT_CODE
             val reason = head.getString(HEADERS_REASON_FIELD) ?: metadata[REASON_PROPERTY] ?: DEFAULT_REASON
             val statusLine = StatusLine(HttpVersion.HTTP_1_1, code, reason)
+            val httpBody = body.body.toByteArray()
 
-            val httpHeaders = RawHttpHeaders.newBuilder()
+            val httpHeaders = RawHttpHeaders.newBuilderSkippingValidation(BASIC_HEADERS)
             head.getList(HEADERS_FIELD)?.forEach {
                 require(it.hasMessageValue()) { "Item of '$HEADERS_FIELD' field list is not a message: ${it.toPrettyString()}" }
                 val message = it.messageValue
@@ -98,7 +110,8 @@ class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, val uuid: S
                 val value = message.getString(HEADER_VALUE_FIELD) ?: error("Header message has no $HEADER_VALUE_FIELD field: ${message.toPrettyString()}")
                 httpHeaders.with(name, value)
             }
-            return Th2Response(statusLine, httpHeaders.build(), head.metadata.propertiesMap["uuid"])
+            httpHeaders.overwrite("Content-Length", httpBody.size.toString())
+            return Th2Response(statusLine, httpHeaders.build(), EagerBodyReader(httpBody), head.metadata.propertiesMap["uuid"])
         }
 
     }

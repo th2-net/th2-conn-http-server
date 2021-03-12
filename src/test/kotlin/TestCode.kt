@@ -24,19 +24,17 @@ import testimpl.TestClientOptions
 import testimpl.TestResponseManager
 import testimpl.TestServerOptions
 
-class Test {
+class TestCode {
     companion object {
         private val th2server = Th2HttpServer(TestServerOptions())
-        private val request =  {port: Int -> RawHttp().parseRequest(
-            """
-            GET / HTTP/1.1
-            Host: localhost:$port
-            User-Agent: client RawHTTP
-            """.trimIndent()
-        )}
 
         @BeforeAll @JvmStatic fun setUp() {
-            this.th2server.start(TestResponseManager())
+            val response = RawHttp().parseResponse("HTTP/1.1 200 OK\n" +
+                    "Content-Type: text/plain\n" +
+                    "Content-Length: 9\n" +
+                    "\n" +
+                    "something")
+            this.th2server.start(TestResponseManager(response))
         }
 
         @AfterAll @JvmStatic fun finish() {
@@ -45,26 +43,23 @@ class Test {
 
     }
 
-    @Test fun testTh2CodeHttp() {
+    @Test fun test() {
+        val request =  {port: Int -> RawHttp().parseRequest(
+            """
+            GET / HTTP/1.1
+            Host: localhost:$port
+            User-Agent: client RawHTTP
+            """.trimIndent()
+        )}
+
         val client = TcpRawHttpClient(TestClientOptions())
         val th2request = request(GlobalVariables.port)
 
-        var response: RawHttpResponse<*>? = null
-
-
-        client.run {
-            while (response==null) {
-                response = try {
-                    send(th2request).eagerly()
-                } catch (e: Exception) {
-                    null
-                }
-            }
-            //Thread.sleep(150L)
-        }
+        val response: RawHttpResponse<*>? = client.send(th2request).eagerly()
 
         assertEquals(response?.statusCode, 200)
         client.close()
     }
+
 
 }

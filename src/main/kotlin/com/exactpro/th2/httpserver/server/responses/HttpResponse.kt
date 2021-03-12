@@ -24,7 +24,7 @@ internal class HttpResponses {
 
     companion object {
         val basicHeaders = RawHttpHeaders.newBuilderSkippingValidation()
-            .with("Content-Type", "text/plain")
+            .with("Content-Type", "application")
             .with("Cache-Control", "no-cache")
             .with("Pragma", "no-cache")
             .build()
@@ -39,7 +39,7 @@ internal class HttpResponses {
             RawHttpHeaders.newBuilderSkippingValidation(basicHeaders)
                 .overwrite("Content-Length", Integer.toString(notFoundResponseBody.size))
                 .build(), EagerBodyReader(notFoundResponseBody))
-        val NOT_FOUND_404_HTTP1_0 = NOT_FOUND_404_HTTP1_1.let { it.withStatusLine(STATUS_404_HTTP1_0) }
+        val NOT_FOUND_404_HTTP1_0 = NOT_FOUND_404_HTTP1_1.withStatusLine(STATUS_404_HTTP1_0)
         val SERVER_ERROR_500_HTTP1_1 = EagerHttpResponse<Void>(null, null, STATUS_500_HTTP1_1,
         RawHttpHeaders.newBuilderSkippingValidation(basicHeaders)
         .overwrite("Content-Length", Integer.toString(serverErrorResponseBody.size))

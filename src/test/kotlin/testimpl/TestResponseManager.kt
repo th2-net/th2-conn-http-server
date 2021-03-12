@@ -29,23 +29,14 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.collections.HashMap
 
-class TestResponseManager : IResponseManager {
-    class TimerTask(val answer: (RawHttpResponse<*>) -> Unit ): java.util.TimerTask() {
-        override fun run() {
-            answer(RawHttp().parseResponse("HTTP/1.1 200 OK\n" +
-                    "Content-Type: text/plain\n" +
-                    "Content-Length: 9\n" +
-                    "\n" +
-                    "something"))
-        }
-    }
+class TestResponseManager(private val response: RawHttpResponse<*>) : IResponseManager {
 
-    override fun init(content: IResponseManager.ResponseManagerContext) {
+    override fun init(value: IResponseManager.ResponseManagerContext) {
 
     }
 
     override fun handleRequest(request: RawHttpRequest, answer: (RawHttpResponse<*>) -> Unit) {
-        Timer().schedule(TimerTask(answer), 5000)
+        answer(response)
     }
 
     override fun handleResponse(request: MessageGroup) {
