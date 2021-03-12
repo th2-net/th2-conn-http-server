@@ -20,6 +20,7 @@ import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.getInt
 import com.exactpro.th2.common.message.getList
 import com.exactpro.th2.common.message.getString
+import com.exactpro.th2.httpserver.util.toPrettyString
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 import rawhttp.core.*
@@ -117,4 +118,3 @@ private fun AnyMessage.toRaw(name: String): RawMessage = run {
     rawMessage
 }
 
-fun MessageOrBuilder.toPrettyString(): String = JsonFormat.printer().omittingInsignificantWhitespace().includingDefaultValueFields().print(this)

@@ -41,6 +41,8 @@ import java.time.Instant
 
 private inline operator fun <T : Builder> T.invoke(block: T.() -> Unit) = apply(block)
 
+fun MessageOrBuilder.toPrettyString(): String = JsonFormat.printer().omittingInsignificantWhitespace().includingDefaultValueFields().print(this)
+
 private fun RawMessage.Builder.toBatch() = run(AnyMessage.newBuilder()::setRawMessage)
     .run(MessageGroup.newBuilder()::addMessages)
     .run(MessageGroupBatch.newBuilder()::addGroups)
