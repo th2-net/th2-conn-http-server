@@ -21,10 +21,12 @@ import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.httpserver.api.IResponseManager.*
 import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.server.responses.HttpResponses
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.exactpro.th2.httpserver.util.*
 import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
+import java.lang.IllegalArgumentException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -54,31 +56,18 @@ class BasicResponseManager : IResponseManager {
         dialogs[uuid] = answer
         logger.debug("Stored dialog: $uuid")
         val messageGroup = request.toBatch(context.connectionID, Direction.SECOND, sequence, uuid)
-        context.messageRouter.send(messageGroup, QueueAttribute.FIRST.toString())
+        context.messageRouter.sendAll(messageGroup, QueueAttribute.FIRST.toString())
         logger.debug("Send on alias: ${context.connectionID.sessionAlias}")
     }
 
     override fun handleResponse(messages: MessageGroup) {
-        val response = messages.toResponse()
-        val uuid = messages.run {
-            when (messagesCount) {
-                0 -> error("Message group is empty")
-                1 -> getMessages(0).run {
-                    when {
-                        hasMessage() -> message.metadata.propertiesMap["uuid"]
-                        hasRawMessage() -> rawMessage.metadata.propertiesMap["uuid"]
-                        else -> error("Single message in group is neither parsed nor raw: ${toPrettyString()}")
-                    }
-                }
-                2 -> {
-                    getMessages(0).message.metadata.propertiesMap["uuid"]
-                }
-                else -> error("Message group contains more than 2 messages")
-            }
+        val response = Th2Response.Builder().setGroup(messages).build()
+        if (response.uuid == null) {
+            throw IllegalArgumentException("UUID is required")
         }
-        //TODO: GET ANSWER BY SEQUENCE
-        logger.debug("Handling response from mq: $messages")
-        dialogs[uuid]?.let { it(HttpResponses.SERVER_ERROR_500_HTTP1_1) }
+        dialogs[response.uuid]?.let { it(HttpResponses.SERVER_ERROR_500_HTTP1_1) } ?: run {
+            throw IllegalArgumentException("UUID is not exist")
+        }
     }
 
     override fun close() {
