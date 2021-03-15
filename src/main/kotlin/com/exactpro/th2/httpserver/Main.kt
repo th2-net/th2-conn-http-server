@@ -20,6 +20,7 @@ import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageListener
 import com.exactpro.th2.common.schema.message.MessageRouter
+import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.common.schema.message.storeEvent
 import com.exactpro.th2.httpserver.api.IRequestHandler
 import com.exactpro.th2.httpserver.api.IResponseHandler
@@ -30,6 +31,7 @@ import com.exactpro.th2.httpserver.api.impl.BasicResponseManager
 import com.exactpro.th2.httpserver.server.Th2HttpServer
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.options.Th2ServerOptions
+import com.exactpro.th2.httpserver.util.toBatch
 import com.exactpro.th2.httpserver.util.toPrettyString
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -39,6 +41,8 @@ import rawhttp.core.RawHttpResponse
 import java.time.Instant
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.concurrent.thread
 
 private val LOGGER = KotlinLogging.logger { }
@@ -101,8 +105,17 @@ class Main {
                 type("Microservice")
             }).id
 
+            val generateSequence = Instant.now().run {
+                AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
+            }::incrementAndGet
+
+            val onResponse = { request: RawHttpRequest, response: RawHttpResponse<*> ->
+                messageRouter.send(response.toBatch(connectionId, generateSequence(), request), QueueAttribute.SECOND.toString())
+                responseHandler.onResponse(request, response)
+            }
+
             val options: ServerOptions = Th2ServerOptions(settings.port,
-                { req: RawHttpRequest, res: RawHttpResponse<*> -> responseHandler.onResponse(req, res) }
+                { req: RawHttpRequest, res: RawHttpResponse<*> -> onResponse(req, res) }
             ) { req: RawHttpRequest -> requestHandler.onRequest(req) }
 
             responseManager.runCatching {

@@ -65,7 +65,9 @@ class BasicResponseManager : IResponseManager {
         if (response.uuid == null) {
             throw IllegalArgumentException("UUID is required")
         }
-        dialogs[response.uuid]?.let { it(HttpResponses.SERVER_ERROR_500_HTTP1_1) } ?: run {
+        dialogs[response.uuid]?.let {
+            it(response)
+        } ?: run {
             throw IllegalArgumentException("UUID is not exist")
         }
     }

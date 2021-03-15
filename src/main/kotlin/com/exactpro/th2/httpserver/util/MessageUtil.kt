@@ -87,4 +87,4 @@ private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction
 }
 
 fun RawHttpRequest.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, id: String): MessageGroupBatch = toBatch(connectionId, direction, sequence, this, id)
-//fun RawHttpResponse<*>.toBatch(connectionId: ConnectionID, sequence: Long, request: RawHttpRequest): MessageGroupBatch = toBatch(connectionId, FIRST, sequence, request)
+fun RawHttpResponse<*>.toBatch(connectionId: ConnectionID, sequence: Long, request: RawHttpRequest): MessageGroupBatch = toBatch(connectionId, FIRST, sequence, request)
