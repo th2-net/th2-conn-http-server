@@ -81,7 +81,7 @@ internal class ServerManager (private val responseManager: IResponseManager, pri
                 responseManager.handleRequest(requestEagerly) { res: RawHttpResponse<*> ->
                     val response = options.prepareResponse(requestEagerly, res)
                     response.writeTo(client.getOutputStream())
-                    LOGGER.debug("Response $response was send to client")
+                    LOGGER.debug("Response: \n$response\nwas send to client")
                     options.onResponse(requestEagerly, response)
                     closeBodyOf(response)
                 }

@@ -110,7 +110,7 @@ class Main {
             }::incrementAndGet
 
             val onResponse = { request: RawHttpRequest, response: RawHttpResponse<*> ->
-                messageRouter.send(response.toBatch(connectionId, generateSequence(), request), QueueAttribute.SECOND.toString())
+                messageRouter.sendAll(response.toBatch(connectionId, generateSequence(), request), QueueAttribute.SECOND.toString())
                 responseHandler.onResponse(request, response)
             }
 

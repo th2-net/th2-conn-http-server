@@ -68,7 +68,7 @@ class BasicResponseManager : IResponseManager {
         dialogs[response.uuid]?.let {
             it(response)
         } ?: run {
-            throw IllegalArgumentException("UUID is not exist")
+            throw IllegalArgumentException("UUID is not present")
         }
     }
 
