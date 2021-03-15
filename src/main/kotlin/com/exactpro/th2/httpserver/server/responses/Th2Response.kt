@@ -111,7 +111,8 @@ class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, bodyReader:
                 httpHeaders.with(name, value)
             }
             httpHeaders.overwrite("Content-Length", httpBody.size.toString())
-            return Th2Response(statusLine, httpHeaders.build(), EagerBodyReader(httpBody), head.metadata.propertiesMap["uuid"])
+            val uuid = head.metadata.propertiesMap["uuid"] ?: body.metadata.propertiesMap["uuid"]
+            return Th2Response(statusLine, httpHeaders.build(), EagerBodyReader(httpBody), uuid)
         }
 
     }
