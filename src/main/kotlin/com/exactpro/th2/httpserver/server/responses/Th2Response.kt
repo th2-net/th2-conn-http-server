@@ -108,7 +108,7 @@ class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, bodyReader:
                 val message = it.messageValue
                 val name = message.getString(HEADER_NAME_FIELD) ?: error("Header message has no $HEADER_NAME_FIELD field: ${message.toPrettyString()}")
                 val value = message.getString(HEADER_VALUE_FIELD) ?: error("Header message has no $HEADER_VALUE_FIELD field: ${message.toPrettyString()}")
-                httpHeaders.with(name, value)
+                httpHeaders.overwrite(name, value)
             }
             httpHeaders.overwrite("Content-Length", httpBody.size.toString())
             val uuid = head.metadata.propertiesMap["uuid"] ?: body.metadata.propertiesMap["uuid"]
