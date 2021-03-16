@@ -12,7 +12,7 @@
  */
 
 plugins {
-    id 'com.jfrog.artifactory' version '4.15.1'
+    id "com.jfrog.bintray" version '1.8.5'
     id 'org.jetbrains.kotlin.jvm' version "${kotlin_version}"
     id "com.github.harbby.gradle.serviceloader" version '1.1.5'
     id 'com.palantir.docker' version '0.25.0' apply false
@@ -25,7 +25,6 @@ plugins {
 apply plugin: 'kotlin'
 apply plugin: 'application'
 apply plugin: 'maven-publish'
-apply plugin: 'com.jfrog.artifactory'
 apply plugin: 'com.palantir.docker'
 
 
@@ -52,11 +51,6 @@ repositories {
         url 'https://dl.bintray.com/exactpro/th2'
     }
 
-    maven {
-        name 'Artifactory release'
-        url 'http://artifactory5.exp.exactpro.com/artifactory/libs-release'
-    }
-
     mavenLocal()
 
     configurations.all {
@@ -81,26 +75,65 @@ jar {
     }
 }
 
-artifactory {
-    publish {
-        contextUrl = "${artifactory_url}"
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
 
-        repository {
-            repoKey = "${artifactory_deploy_repo_key}"
-            username = "${artifactory_user}"
-            password = "${artifactory_password}"
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
         }
 
-        defaults {
-            publications('mavenJava')
-            publishArtifacts = true
-            publishBuildInfo = true
-            publishPom = true
+        bintrayPublication(MavenPublication) {
+            from components.java
+
+            groupId group
+            artifactId rootProject.name
+            version project.version
+
+            pom.withXml {
+                def root = asNode()
+                root.appendNode('name', rootProject.name)
+                root.appendNode('url', project.vcs_url)
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'localRepo'
+            url = sharedDir
         }
     }
 }
 
+bintray {
+    user = "${bintray_user}"
+    key = "${bintray_key}"
+    publications = ['bintrayPublication']
+
+    pkg {
+        repo = 'th2'
+        name = rootProject.name
+        userOrg = 'exactpro'
+        licenses = ['Apache-2.0']
+        vcsUrl = project.vcs_url
+
+        version {
+            name = project.version
+            desc = project.version
+            released = new Date()
+        }
+    }
+
+    publish = true
+}
+
 dependencies {
+    api platform('com.exactpro.th2:bom:2.10.1')
+
     implementation "com.exactpro.th2:common:3.0.3"
 
     implementation 'org.slf4j:slf4j-log4j12'
@@ -117,6 +150,20 @@ dependencies {
 
 application {
     mainClassName 'com.exactpro.th2.httpserver.Main'
+}
+
+applicationName = 'service'
+
+distTar {
+    archiveName "${applicationName}.tar"
+}
+
+dockerPrepare {
+    dependsOn distTar
+}
+
+docker {
+    copySpec.from(tarTree("$buildDir/distributions/${applicationName}.tar"))
 }
 
 compileKotlin {
@@ -141,16 +188,4 @@ test {
     useJUnitPlatform()
 }
 
-applicationName = 'service'
 
-distTar {
-    archiveName "${applicationName}.tar"
-}
-
-dockerPrepare {
-    dependsOn distTar
-}
-
-docker {
-    copySpec.from(tarTree("$buildDir/distributions/${applicationName}.tar"))
-}
