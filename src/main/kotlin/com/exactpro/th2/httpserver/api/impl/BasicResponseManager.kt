@@ -55,8 +55,8 @@ class BasicResponseManager : IResponseManager {
         val sequence = generateSequence()
         dialogs[uuid] = answer
         logger.debug("Stored dialog: $uuid")
-        val messageGroup = request.toBatch(context.connectionID, Direction.SECOND, sequence, uuid)
-        context.messageRouter.sendAll(messageGroup, QueueAttribute.FIRST.toString())
+        val messageGroup = request.toBatch(context.connectionID, sequence, uuid)
+        context.messageRouter.sendAll(messageGroup, QueueAttribute.SECOND.toString())
         logger.debug("Send on alias: ${context.connectionID.sessionAlias}")
     }
 
