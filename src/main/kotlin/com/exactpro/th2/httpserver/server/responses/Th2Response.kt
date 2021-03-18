@@ -27,34 +27,28 @@ import rawhttp.core.body.BytesBody
 import rawhttp.core.body.EagerBodyReader
 import java.nio.charset.StandardCharsets
 
-const val RESPONSE_MESSAGE = "Response"
+private const val RESPONSE_MESSAGE = "Response"
 
-const val HEADERS_FIELD = "headers"
-const val HEADER_NAME_FIELD = "name"
-const val HEADER_VALUE_FIELD = "value"
-const val HEADERS_CODE_FIELD = "code"
-const val HEADERS_REASON_FIELD = "reason"
+private const val HEADERS_FIELD = "headers"
+private const val HEADER_NAME_FIELD = "name"
+private const val HEADER_VALUE_FIELD = "value"
+private const val HEADERS_CODE_FIELD = "code"
+private const val HEADERS_REASON_FIELD = "reason"
+private const val CONTENT_TYPE_HEADER = "Content-Type"
 
-const val CODE_PROPERTY = HEADERS_CODE_FIELD
-const val REASON_PROPERTY = HEADERS_REASON_FIELD
+private const val HEADER_VALUE_SEPARATOR = ";"
 
-const val DEFAULT_CODE = 200
-const val DEFAULT_REASON = "OK"
+private const val CONTENT_TYPE_PROPERTY = "contentType"
+private const val CODE_PROPERTY = HEADERS_CODE_FIELD
+private const val REASON_PROPERTY = HEADERS_REASON_FIELD
 
-class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, bodyReader: BodyReader, val uuid: String?) :
+private const val DEFAULT_CODE = 200
+private const val DEFAULT_REASON = "OK"
+
+class Th2Response private constructor(statusLine: StatusLine, headers: RawHttpHeaders, bodyReader: BodyReader, val uuid: String) :
     RawHttpResponse<MessageGroup>(null, null, statusLine, headers, bodyReader) {
 
-    init {
-
-    }
-
     class Builder {
-        val BASIC_HEADERS = RawHttpHeaders.newBuilderSkippingValidation()
-            .with("Content-Type", "application")
-            .with("Cache-Control", "no-cache")
-            .with("Pragma", "no-cache")
-            .build()
-
         private val metadata = hashMapOf<String,String>()
 
         private var head: Message = Message.getDefaultInstance()
@@ -67,11 +61,6 @@ class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, bodyReader:
 
         fun setBody(message: RawMessage) : Builder {
             this.body = message
-            return this
-        }
-
-        fun with(key: String, value: String ) : Builder{
-            metadata[key] = value
             return this
         }
 
@@ -100,9 +89,9 @@ class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, bodyReader:
             val code: Int = head.getInt(HEADERS_CODE_FIELD) ?: metadata[CODE_PROPERTY]?.toInt() ?: DEFAULT_CODE
             val reason = head.getString(HEADERS_REASON_FIELD) ?: metadata[REASON_PROPERTY] ?: DEFAULT_REASON
             val statusLine = StatusLine(HttpVersion.HTTP_1_1, code, reason)
-            val httpBody = body.body.toByteArray()
+            val httpBody = body.body.toByteArray().takeIf(ByteArray::isNotEmpty)
 
-            val httpHeaders = RawHttpHeaders.newBuilderSkippingValidation(BASIC_HEADERS)
+            val httpHeaders = RawHttpHeaders.newBuilder()
             head.getList(HEADERS_FIELD)?.forEach {
                 require(it.hasMessageValue()) { "Item of '$HEADERS_FIELD' field list is not a message: ${it.toPrettyString()}" }
                 val message = it.messageValue
@@ -110,8 +99,15 @@ class Th2Response(statusLine: StatusLine?, headers: RawHttpHeaders?, bodyReader:
                 val value = message.getString(HEADER_VALUE_FIELD) ?: error("Header message has no $HEADER_VALUE_FIELD field: ${message.toPrettyString()}")
                 httpHeaders.overwrite(name, value)
             }
-            httpHeaders.overwrite("Content-Length", httpBody.size.toString())
+            if (httpBody != null && CONTENT_TYPE_HEADER !in httpHeaders.headerNames) {
+                metadata[CONTENT_TYPE_PROPERTY]?.run {
+                    split(HEADER_VALUE_SEPARATOR).forEach {
+                        httpHeaders.with(CONTENT_TYPE_HEADER, it.trim())
+                    }
+                }
+            }
             val uuid = head.metadata.propertiesMap["uuid"] ?: body.metadata.propertiesMap["uuid"]
+            checkNotNull(uuid) { "UUID is required" }
             return Th2Response(statusLine, httpHeaders.build(), EagerBodyReader(httpBody), uuid)
         }
 
