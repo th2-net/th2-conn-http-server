@@ -25,19 +25,18 @@ import testimpl.TestServerOptions
 
 class TestServerResponse {
     companion object {
-        private val th2server = Th2HttpServer(TestServerOptions())
-
-        @BeforeAll @JvmStatic fun setUp() {
-            val response = RawHttp().parseResponse(
-                """
+        private val response = RawHttp().parseResponse(
+            """
                 HTTP/1.1 200 OK
                 Content-Type: text/plain
                 Content-Length: 9
                 
                 something
                 """.trimIndent())
+        private val th2server = Th2HttpServer(TestResponseManager(response)::handleRequest, TestServerOptions(),)
 
-            this.th2server.start(TestResponseManager(response)::handleRequest)
+        @BeforeAll @JvmStatic fun setUp() {
+            this.th2server.start()
         }
 
         @AfterAll @JvmStatic fun finish() {
