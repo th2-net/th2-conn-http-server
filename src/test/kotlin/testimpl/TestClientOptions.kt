@@ -21,7 +21,7 @@ import java.net.Socket
 import java.net.URI
 import java.util.concurrent.ExecutorService
 
-class TestClientOptions() : TcpRawHttpClient.DefaultOptions() {
+class TestClientOptions(private val https: Boolean = false) : TcpRawHttpClient.DefaultOptions() {
     private val logger = KotlinLogging.logger {}
 
     override fun onRequest(httpRequest: RawHttpRequest): RawHttpRequest {
@@ -37,6 +37,6 @@ class TestClientOptions() : TcpRawHttpClient.DefaultOptions() {
     }
 
     override fun createSocket(useHttps: Boolean, host: String, port: Int): Socket {
-        return super.createSocket(false, host, port)
+        return super.createSocket(https, host, port)
     }
 }

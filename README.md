@@ -12,8 +12,10 @@ Main configuration is done via setting following properties in a custom configur
 ### Configuration example
 
 ```yaml
+https: false
 port: 334
 sessionAlias: api_session
+threads: 24
 ```
 
 ### MQ pins
@@ -74,8 +76,10 @@ spec:
   image-name: ghcr.io/th2-net/th2-conn-http-server
   image-version: 0.0.1
   custom-config:
+    https: false
     port: 8080
     sessionAlias: some_alias
+    threads: 24
   type: th2-conn
   pins:
     - name: to_send

@@ -33,7 +33,7 @@ class TestServerResponse {
                 
                 something
                 """.trimIndent())
-        private val th2server = Th2HttpServer(TestResponseManager(response)::handleRequest, TestServerOptions(),)
+        private val th2server = Th2HttpServer(TestResponseManager(response)::handleRequest, TestServerOptions())
 
         @BeforeAll @JvmStatic fun setUp() {
             this.th2server.start()

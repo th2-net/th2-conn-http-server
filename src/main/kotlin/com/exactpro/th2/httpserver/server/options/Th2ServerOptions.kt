@@ -23,26 +23,56 @@ import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.net.ServerSocket
 import java.time.Instant
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import javax.net.ServerSocketFactory
+import java.io.FileInputStream
+import java.lang.Exception
+
+import java.security.KeyStore
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
+
+import javax.net.ssl.SSLServerSocketFactory
+
 
 class Th2ServerOptions(
+    private val https: Boolean,
     private val port: Int,
-    private val handleResponse: (RawHttpRequest, RawHttpResponse<*>) -> Unit,
-    private val handleRequest: (RawHttpRequest) -> Unit) : ServerOptions {
+    private val threads: Int
+) : ServerOptions {
 
     private val logger = KotlinLogging.logger {}
 
-    override fun getServerSocket(): ServerSocket {
-        logger.info("Server socket on port:${port} created")
-        return ServerSocket(port)
+    override fun createSocket(): ServerSocket {
+        return getFactory().createServerSocket(port).apply { logger.info("Created server socket on port:${port}") }
     }
 
-    override fun onResponse(request: RawHttpRequest, response: RawHttpResponse<*>) {
-        handleResponse(request, response)
+    private fun getFactory(): ServerSocketFactory {
+        if (!https) return ServerSocketFactory.getDefault()
+
+        // set up key manager to do server authentication
+        val passphrase = "passphrase".toCharArray()
+        val ctx: SSLContext = SSLContext.getInstance("TLSv1.2")
+        //val kmf: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+        //val ks: KeyStore = KeyStore.getInstance("JKS")
+        //ks.load(FileInputStream("testkeys"), passphrase)
+        //kmf.init(ks, passphrase)
+        ctx.init(null, null, null)
+        return ctx.serverSocketFactory
+
     }
 
-    override fun onRequest(request: RawHttpRequest) {
-        handleRequest(request)
+    override fun createExecutorService(): ExecutorService {
+        val threadCount = AtomicInteger(1)
+        return Executors.newFixedThreadPool(threads) { runnable: Runnable? ->
+            val t = Thread(runnable)
+            t.isDaemon = true
+            t.name = "th2-http-server-" + threadCount.incrementAndGet()
+            t
+        }
     }
 }
