@@ -11,7 +11,6 @@
  * limitations under the License.
  */
 
-import com.exactpro.th2.httpserver.api.impl.BasicResponseManager
 import com.exactpro.th2.httpserver.server.Th2HttpServer
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -24,17 +23,21 @@ import testimpl.TestClientOptions
 import testimpl.TestResponseManager
 import testimpl.TestServerOptions
 
-class TestCode {
+class TestServerResponse {
     companion object {
         private val th2server = Th2HttpServer(TestServerOptions())
 
         @BeforeAll @JvmStatic fun setUp() {
-            val response = RawHttp().parseResponse("HTTP/1.1 200 OK\n" +
-                    "Content-Type: text/plain\n" +
-                    "Content-Length: 9\n" +
-                    "\n" +
-                    "something")
-            this.th2server.start(TestResponseManager(response))
+            val response = RawHttp().parseResponse(
+                """
+                HTTP/1.1 200 OK
+                Content-Type: text/plain
+                Content-Length: 9
+                
+                something
+                """.trimIndent())
+
+            this.th2server.start(TestResponseManager(response)::handleRequest)
         }
 
         @AfterAll @JvmStatic fun finish() {
@@ -44,20 +47,18 @@ class TestCode {
     }
 
     @Test fun test() {
-        val request =  {port: Int -> RawHttp().parseRequest(
+        val client = TcpRawHttpClient(TestClientOptions())
+        val request = RawHttp().parseRequest(
             """
             GET / HTTP/1.1
-            Host: localhost:$port
+            Host: localhost:${GlobalVariables.PORT}
             User-Agent: client RawHTTP
             """.trimIndent()
-        )}
+        )
 
-        val client = TcpRawHttpClient(TestClientOptions())
-        val th2request = request(GlobalVariables.port)
+        val response: RawHttpResponse<*> = client.send(request).eagerly()
 
-        val response: RawHttpResponse<*>? = client.send(th2request).eagerly()
-
-        assertEquals(response?.statusCode, 200)
+        assertEquals(response.statusCode, 200)
         client.close()
     }
 

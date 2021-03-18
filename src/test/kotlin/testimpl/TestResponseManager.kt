@@ -15,19 +15,9 @@ package testimpl
 
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.httpserver.api.IResponseManager
-import com.exactpro.th2.httpserver.server.headers.DateHeaderProvider
-import com.exactpro.th2.httpserver.server.responses.HttpResponses
-import rawhttp.core.RawHttp
-import rawhttp.core.RawHttpHeaders
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
-import java.net.Socket
-import java.time.Duration
-import java.time.Instant
-import java.util.*
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicLong
-import kotlin.collections.HashMap
+
 
 class TestResponseManager(private val response: RawHttpResponse<*>) : IResponseManager {
 
@@ -39,7 +29,7 @@ class TestResponseManager(private val response: RawHttpResponse<*>) : IResponseM
         answer(response)
     }
 
-    override fun handleResponse(request: MessageGroup) {
+    override fun handleResponse(messages: MessageGroup) {
 
     }
 

@@ -15,64 +15,38 @@ import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.addField
 import com.exactpro.th2.common.message.message
-import com.exactpro.th2.httpserver.server.Th2HttpServer
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.google.protobuf.ByteString
 import mu.KotlinLogging
-import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
-import rawhttp.core.RawHttp
-import rawhttp.core.RawHttpResponse
-import rawhttp.core.client.TcpRawHttpClient
-import testimpl.TestClientOptions
-import testimpl.TestResponseManager
-import testimpl.TestServerOptions
-import java.util.logging.Logger
 
 private val LOGGER = KotlinLogging.logger { }
 
 class TestTh2Response {
-    companion object {
-        private val th2server = Th2HttpServer(TestServerOptions())
-
-        @BeforeAll
-        @JvmStatic fun setUp() {
-            val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
-                addField("TestFieldOne", "One")
-                addField("TestFieldTwo", "Two")
-                addField("TestFieldThree", "Three")
-                metadataBuilder.protocol = "http"
-            }.build()
-            val bodyMessage = RawMessage.newBuilder().setBody(ByteString.copyFrom("SOME BYTES".toByteArray())).build()
-            val response = Th2Response.Builder().setHead(responseMessage).setBody(bodyMessage).build()
-            LOGGER.info("Created response $response")
-            this.th2server.start(TestResponseManager(response))
-        }
-
-        @AfterAll
-        @JvmStatic fun finish() {
-            this.th2server.stop()
-        }
-    }
 
     @Test
-    fun test() {
-        val request =  {port: Int -> RawHttp().parseRequest(
-            """
-            GET / HTTP/1.1
-            Host: localhost:$port
-            User-Agent: client RawHTTP
-            """.trimIndent()
-        )}
+    fun th2ResponseTest() {
+        val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
+            addField("code", 500)
+            addField("reason", "Test reason")
+            addField("TestFieldThree", "Three")
+            //addField("headers",)
+            metadataBuilder.protocol = "http"
+            metadataBuilder.putProperties("uuid", "test-uuid")
+        }.build()
 
-        val client = TcpRawHttpClient(TestClientOptions())
-        val th2request = request(GlobalVariables.port)
+        val bodyMessage = RawMessage.newBuilder().apply {
+            body = ByteString.copyFrom("SOME BYTES".toByteArray())
+            metadata = metadataBuilder.putProperties("contentType", "application").build()
+        }.build()
 
-        val response: RawHttpResponse<*>? = client.send(th2request).eagerly()
+        val response = Th2Response.Builder().setHead(responseMessage).setBody(bodyMessage).build()
+        Assertions.assertEquals(500, response.statusCode)
+        Assertions.assertEquals("Test reason", response.startLine.reason)
+        Assertions.assertEquals("test-uuid", response.uuid)
+        Assertions.assertEquals("application", response.headers["content-type"][0])
 
-        Assertions.assertEquals(response?.statusCode, 200)
-        client.close()
+
     }
 }

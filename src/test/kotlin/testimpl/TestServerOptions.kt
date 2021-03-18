@@ -15,10 +15,23 @@ package testimpl
 
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import java.net.ServerSocket
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 class TestServerOptions : ServerOptions {
-    override fun getServerSocket(): ServerSocket {
-        return ServerSocket(GlobalVariables.port)
+    override fun createSocket(): ServerSocket {
+        return ServerSocket(GlobalVariables.PORT)
+    }
+
+    override fun createExecutorService(): ExecutorService {
+        val threadCount = AtomicInteger(1)
+        return Executors.newFixedThreadPool(24) { runnable: Runnable? ->
+            val t = Thread(runnable)
+            t.isDaemon = true
+            t.name = "th2-http-server-" + threadCount.incrementAndGet()
+            t
+        }
     }
 
 }
