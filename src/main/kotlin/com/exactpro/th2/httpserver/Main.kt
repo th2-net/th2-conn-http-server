@@ -20,30 +20,22 @@ import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageListener
 import com.exactpro.th2.common.schema.message.MessageRouter
-import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.common.schema.message.storeEvent
-import com.exactpro.th2.httpserver.api.IRequestHandler
-import com.exactpro.th2.httpserver.api.IResponseHandler
-import com.exactpro.th2.httpserver.api.IResponseManager
-import com.exactpro.th2.httpserver.api.impl.BasicRequestHandler
-import com.exactpro.th2.httpserver.api.impl.BasicResponseHandler
-import com.exactpro.th2.httpserver.api.impl.BasicResponseManager
+import com.exactpro.th2.httpserver.api.*
+import com.exactpro.th2.httpserver.api.IResponseManager.ResponseManagerContext
+import com.exactpro.th2.httpserver.api.impl.*
 import com.exactpro.th2.httpserver.server.Th2HttpServer
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.options.Th2ServerOptions
-import com.exactpro.th2.httpserver.util.toBatch
 import com.exactpro.th2.httpserver.util.toPrettyString
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import mu.KotlinLogging
-import rawhttp.core.RawHttpRequest
-import rawhttp.core.RawHttpResponse
 import java.time.Instant
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedDeque
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.concurrent.thread
+import kotlin.system.exitProcess
 
 private val LOGGER = KotlinLogging.logger { }
 
@@ -67,8 +59,6 @@ class Main {
                 CommonFactory()
             }.apply { resources += "factory" to ::close }
 
-            val requestHandler = load<IRequestHandler>(BasicRequestHandler::class.java)
-            val responseHandler = load<IResponseHandler>(BasicResponseHandler::class.java)
             val responseManager = load<IResponseManager>(BasicResponseManager::class.java)
 
             val mapper = JsonMapper.builder()
@@ -78,21 +68,21 @@ class Main {
             val settings = factory.getCustomConfiguration(Settings::class.java, mapper)
 
             run(
-                settings, responseManager, responseHandler, requestHandler,
-                factory.eventBatchRouter, factory.messageRouterMessageGroupBatch
+                settings,
+                responseManager,
+                factory.eventBatchRouter,
+                factory.messageRouterMessageGroupBatch
             ) { resource, destructor ->
                 resources += resource to destructor
             }
         } catch (e: Exception) {
-            println("${e.message}")
-            e.printStackTrace()
+            LOGGER.error(e) { "Uncaught exception. Shutting down" }
+            exitProcess(1)
         }
 
-        fun run(
+        private fun run(
             settings: Settings,
             responseManager: IResponseManager,
-            responseHandler: IResponseHandler,
-            requestHandler: IRequestHandler,
             eventRouter: MessageRouter<EventBatch>,
             messageRouter: MessageRouter<MessageGroupBatch>,
             registerResource: (name: String, destructor: () -> Unit) -> Unit
@@ -105,43 +95,14 @@ class Main {
                 type("Microservice")
             }).id
 
-            val generateSequence = Instant.now().run {
-                AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
-            }::incrementAndGet
-
-            val onResponse = { request: RawHttpRequest, response: RawHttpResponse<*> ->
-                messageRouter.sendAll(response.toBatch(connectionId, generateSequence(), request), QueueAttribute.FIRST.toString())
-                responseHandler.onResponse(request, response)
-            }
-
-            val options: ServerOptions = Th2ServerOptions(settings.port,
-                { req: RawHttpRequest, res: RawHttpResponse<*> -> onResponse(req, res) }
-            ) { req: RawHttpRequest -> requestHandler.onRequest(req) }
+            val options: ServerOptions = Th2ServerOptions(settings.https, settings.port, settings.threads)
 
             responseManager.runCatching {
                 registerResource("response-manager", ::close)
-                init(IResponseManager.ResponseManagerContext(connectionId, messageRouter))
+                init(ResponseManagerContext(connectionId, messageRouter))
             }.onFailure {
                 LOGGER.error(it) { "Failed to init response-manager" }
                 eventRouter.storeEvent(rootEventId, "Failed to init response-manager", "Error", it)
-                throw it
-            }
-
-            responseHandler.runCatching {
-                registerResource("response-handler", ::close)
-                init()
-            }.onFailure {
-                LOGGER.error(it) { "Failed to init response-handler" }
-                eventRouter.storeEvent(rootEventId, "Failed to init response-handler", "Error", it)
-                throw it
-            }
-
-            requestHandler.runCatching {
-                registerResource("request-handler", ::close)
-                init()
-            }.onFailure {
-                LOGGER.error(it) { "Failed to init request-handler" }
-                eventRouter.storeEvent(rootEventId, "Failed to init request-handler", "Error", it)
                 throw it
             }
 
@@ -149,7 +110,7 @@ class Main {
                 message.groupsList.forEach { group ->
                     group.runCatching(responseManager::handleResponse).recoverCatching {
                         LOGGER.error(it) { "Failed to handle message group: ${group.toPrettyString()}" }
-                        eventRouter.storeEvent(rootEventId, "Failed to handle raw batch: ${group.toPrettyString()}", "Error", it)
+                        eventRouter.storeEvent(rootEventId, "Failed to handle message group: ${group.toPrettyString()}", "Error", it)
                     }
                 }
             }
@@ -162,19 +123,17 @@ class Main {
                 throw IllegalStateException("Failed to subscribe to input queue", it)
             }
 
-            val server: Th2HttpServer = Th2HttpServer(options).apply {
-                this.start(responseManager)
+            Th2HttpServer(responseManager::handleRequest,options).apply {
                 registerResource("server", ::stop)
-            }
-
-            while (server.isRunning()) {
-                Thread.sleep(150L)
+                this.start()
             }
         }
 
         data class Settings(
             val port: Int = 80,
-            val sessionAlias: String
+            val sessionAlias: String,
+            val threads: Int = 24,
+            val https: Boolean = false
         )
 
         private inline fun <reified T> load(defaultImpl: Class<out T>): T {
