@@ -13,23 +13,7 @@
 
 package com.exactpro.th2.httpserver.server
 
-import com.exactpro.th2.httpserver.api.IResponseManager
-
-
 interface HttpServer {
-    /**
-     * Start the server using the provided router to route requests.
-     *
-     *
-     * If this method is called multiple times, it must replace the previous router even if it was already running,
-     * and start serving requests using the new router.
-     *
-     * @param router request router
-     */
-    fun start(responseManager: IResponseManager)
-
-    /**
-     * Stop the server.
-     */
+    fun start()
     fun stop()
 }
