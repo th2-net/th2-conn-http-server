@@ -13,14 +13,11 @@
 
 package com.exactpro.th2.httpserver.api.impl
 
-import com.exactpro.th2.common.grpc.Direction
-import com.exactpro.th2.common.grpc.Message
+
 import com.exactpro.th2.common.grpc.MessageGroup
-import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.httpserver.api.IResponseManager.*
 import com.exactpro.th2.httpserver.api.IResponseManager
-import com.exactpro.th2.httpserver.server.responses.HttpResponses
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.exactpro.th2.httpserver.util.*
 import mu.KotlinLogging
@@ -36,8 +33,8 @@ import java.util.UUID
 class BasicResponseManager : IResponseManager {
 
     private val logger = KotlinLogging.logger {}
-
-    private val dialogs = HashMap<String,(RawHttpResponse<*>) -> Unit>()
+    private val dialogs = HashMap<String,RequestData>()
+    data class RequestData(val request: RawHttpRequest, val answer: (RawHttpResponse<*>) -> Unit)
 
     private val generateSequence = Instant.now().run {
         AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
@@ -52,38 +49,33 @@ class BasicResponseManager : IResponseManager {
 
     override fun handleRequest(request: RawHttpRequest, answer: (RawHttpResponse<*>) -> Unit) {
         val uuid = UUID.randomUUID().toString()
-        val sequence = generateSequence()
-        dialogs[uuid] = answer
+        dialogs[uuid] = RequestData(request, answer)
         logger.debug("Stored dialog: $uuid")
-        val messageGroup = request.toBatch(context.connectionID, sequence, uuid)
-        context.messageRouter.sendAll(messageGroup, QueueAttribute.SECOND.toString())
+        publishMessage(request, uuid)
         logger.debug("Send on alias: ${context.connectionID.sessionAlias}")
     }
 
     override fun handleResponse(messages: MessageGroup) {
         val response = Th2Response.Builder().setGroup(messages).build()
-        if (response.uuid == null) {
-            throw IllegalArgumentException("UUID is required")
-        }
-        dialogs[response.uuid]?.let {
-            it(response)
-        } ?: run {
-            throw IllegalArgumentException("UUID is not present")
-        }
+        val data = dialogs[response.uuid] ?: throw IllegalArgumentException("UUID is not present in store")
+        data.answer(response)
+        publishMessage(data.request, response)
     }
 
     override fun close() {
 
     }
 
-    /*
-    private val DATE_HEADER_PROVIDER = DateHeaderProvider(Duration.ofSeconds(1))
-
-    private val SERVER_HEADER = RawHttpHeaders.newBuilder()
-        .with("Server", "Th2 http server")
-        .build()
-    fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<*>): RawHttpResponse<*> {
-        return response.withHeaders(DATE_HEADER_PROVIDER.getHeader().and(SERVER_HEADER))
+    private fun publishMessage(request: RawHttpRequest, uuid: String) {
+        context.messageRouter.sendAll(
+            request.toBatch(context.connectionID, generateSequence(), uuid),
+            QueueAttribute.SECOND.toString())
     }
-    */
+
+    private fun publishMessage(request: RawHttpRequest, response: Th2Response) {
+        context.messageRouter.sendAll(
+            response.toBatch(context.connectionID, generateSequence(), request),
+            QueueAttribute.FIRST.toString())
+    }
+
 }
