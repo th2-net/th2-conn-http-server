@@ -13,6 +13,6 @@
 
 class GlobalVariables {
     companion object {
-        val port = 25565
+        const val PORT = 25565
     }
 }

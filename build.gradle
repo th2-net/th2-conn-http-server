@@ -179,8 +179,6 @@ compileTestKotlin {
 }
 
 serviceLoader {
-    serviceInterface 'com.exactpro.th2.httpserver.api.IRequestHandler'
-    serviceInterface 'com.exactpro.th2.httpserver.api.IResponseHandler'
     serviceInterface 'com.exactpro.th2.httpserver.api.IResponseManager'
 }
 

@@ -29,7 +29,7 @@ interface IResponseManager : AutoCloseable {
 
     fun handleRequest(request: RawHttpRequest, answer: (RawHttpResponse<*>) -> Unit)
 
-    fun handleResponse(request: MessageGroup)
+    fun handleResponse(messages: MessageGroup)
 
     data class ResponseManagerContext(val connectionID: ConnectionID, val messageRouter: MessageRouter<MessageGroupBatch>)
 }

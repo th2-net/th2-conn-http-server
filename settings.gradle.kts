@@ -12,5 +12,5 @@
  */
 
 
-rootProject.name = "http-server"
+rootProject.name = "conn-http-server"
 
