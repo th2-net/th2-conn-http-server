@@ -13,7 +13,6 @@
 
 package com.exactpro.th2.httpserver.server
 
-import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import mu.KotlinLogging
 import rawhttp.core.*
@@ -27,34 +26,35 @@ import java.net.Socket
 import java.net.SocketException
 import java.util.*
 import java.util.concurrent.ExecutorService
+import java.util.logging.Logger
+import kotlin.reflect.KFunction2
 
 private val LOGGER = KotlinLogging.logger { }
 
-internal class ServerManager (private val responseManager: IResponseManager, private val options: ServerOptions) {
+internal class ServerManager(private val onRequest: KFunction2<RawHttpRequest, (RawHttpResponse<*>) -> Unit, Unit>, private val options: ServerOptions) {
 
-    private val socket: ServerSocket = options.getServerSocket()
+    private var socket: ServerSocket = options.createSocket()
     private val executorService: ExecutorService = options.createExecutorService()
     private val http: RawHttp = options.getRawHttp()
 
-    private fun start() {
+    init {
         Thread({
-            var failedAccepts = 0
             while (true) {
                 try {
-                    val client = socket.accept()
-                    executorService.submit { handle(client) }
-                    failedAccepts = 0
+                    executorService.submit { handle(socket.accept()) }
                 } catch (e: SocketException) {
-                    break // server socket was closed or got broken
+                    LOGGER.error(e) { "Broken socket, trying to recreate..." }
+                    recreateSocket()
                 } catch (e: IOException) {
-                    failedAccepts++
-                    e.printStackTrace()
-                    if (failedAccepts > 10) {
-                        break // give up, too many accept failures
-                    }
+                    LOGGER.error(e) { "Failed accept" }
+                    if (socket.isClosed) recreateSocket()
                 }
             }
-        }, "th2-http-server").start()
+        }, "th2-conn-http-server").start()
+    }
+
+    private fun recreateSocket() {
+        options.runCatching { socket = createSocket() }.onFailure { e -> LOGGER.error(e) { "Can't recreate socket!" }}
     }
 
     private fun handle(client: Socket) {
@@ -74,13 +74,10 @@ internal class ServerManager (private val responseManager: IResponseManager, pri
 
                 serverWillCloseConnection = connectionOption.map { string: String? -> "close".equals(string, ignoreCase = true) }.orElse(false)
 
-                if (!serverWillCloseConnection) {
-                    serverWillCloseConnection = !keepAlive(request.startLine.httpVersion, connectionOption)
-                }
+                if (!serverWillCloseConnection) serverWillCloseConnection = !keepAlive(request.startLine.httpVersion, connectionOption)
 
-                responseManager.handleRequest(requestEagerly) { res: RawHttpResponse<*> ->
-                    val response = options.prepareResponse(requestEagerly, res)
-                    response.writeTo(client.getOutputStream())
+                onRequest(requestEagerly) { res: RawHttpResponse<*> ->
+                    val response = options.prepareResponse(requestEagerly, res).apply { writeTo(client.getOutputStream()) }
                     LOGGER.debug("Response: \n$response\nwas send to client")
                     options.onResponse(requestEagerly, response)
                     closeBodyOf(response)
@@ -88,26 +85,13 @@ internal class ServerManager (private val responseManager: IResponseManager, pri
             } catch (e: Exception) {
                 if (e !is SocketException) {
                     // only print stack trace if this is not due to a client closing the connection
-                    val clientClosedConnection = e is InvalidHttpRequest &&
-                            e.lineNumber == 0
-                    if (!clientClosedConnection) {
-                        e.printStackTrace()
-                    }
-                    try {
-                        client.close()
-                    } catch (ignore: IOException) {
-                        // we wanted to forget the client, so this is fine
-                    }
+                    val clientClosedConnection = e is InvalidHttpRequest && e.lineNumber == 0
+                    if (!clientClosedConnection) LOGGER.error(e.stackTraceToString())
+                    client.runCatching(Socket::close)
                 }
                 serverWillCloseConnection = true // cannot keep listening anymore
             } finally {
-                if (serverWillCloseConnection) {
-                    try {
-                        client.close()
-                    } catch (e: IOException) {
-                        // not a problem
-                    }
-                }
+                if (serverWillCloseConnection) client.runCatching(Socket::close)
             }
         }
     }
@@ -122,12 +106,12 @@ internal class ServerManager (private val responseManager: IResponseManager, pri
         }
     }
 
-    private fun closeBodyOf(response: RawHttpResponse<*>?) {
-        response?.body?.ifPresent { b: BodyReader ->
+    private fun closeBodyOf(response: RawHttpResponse<*>) {
+        response.body.ifPresent { b: BodyReader ->
             try {
                 b.close()
             } catch (e: IOException) {
-                e.printStackTrace()
+               LOGGER.error(e.stackTraceToString())
             }
         }
     }
@@ -144,7 +128,4 @@ internal class ServerManager (private val responseManager: IResponseManager, pri
             && connectionOption.map { option: String? -> "keep-alive".equals(option, ignoreCase = true) }.orElse(false)
     }
 
-    init {
-        start()
-    }
 }
