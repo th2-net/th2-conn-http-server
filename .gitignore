@@ -84,3 +84,11 @@ gradle-app.setting
 
 ### Gradle Patch ###
 **/build/
+
+bin/
+.settings/org.eclipse.buildship.core.prefs
+.gitignore
+.project
+.gitignore
+.settings/org.eclipse.jdt.core.prefs
+.classpath
