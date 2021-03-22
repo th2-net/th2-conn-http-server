@@ -76,6 +76,8 @@ internal class Th2HttpServer(private val onRequest: KFunction2<RawHttpRequest, (
 
                 if (!serverWillCloseConnection) serverWillCloseConnection = !keepAlive(request.startLine.httpVersion, connectionOption)
 
+                LOGGER.debug("Request: \n$requestEagerly\nwas send from client$")
+
                 onRequest(requestEagerly) { res: RawHttpResponse<*> ->
                     val response = options.prepareResponse(requestEagerly, res).apply { writeTo(client.getOutputStream()) }
                     LOGGER.debug("Response: \n$response\nwas send to client")
