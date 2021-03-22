@@ -36,7 +36,11 @@ class BasicResponseManager : IResponseManager {
     private val dialogs = HashMap<String,RequestData>()
     data class RequestData(val request: RawHttpRequest, val answer: (RawHttpResponse<*>) -> Unit)
 
-    private val generateSequence = Instant.now().run {
+    private val generateSequenceRequest = Instant.now().run {
+        AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
+    }::incrementAndGet
+
+    private val generateSequenceResponse = Instant.now().run {
         AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
     }::incrementAndGet
 
@@ -68,13 +72,13 @@ class BasicResponseManager : IResponseManager {
 
     private fun publishMessage(request: RawHttpRequest, uuid: String) {
         context.messageRouter.sendAll(
-            request.toBatch(context.connectionID, generateSequence(), uuid),
+            request.toBatch(context.connectionID, generateSequenceRequest(), uuid),
             QueueAttribute.SECOND.toString())
     }
 
     private fun publishMessage(request: RawHttpRequest, response: Th2Response) {
         context.messageRouter.sendAll(
-            response.toBatch(context.connectionID, generateSequence(), request),
+            response.toBatch(context.connectionID, generateSequenceResponse(), request),
             QueueAttribute.FIRST.toString())
     }
 
