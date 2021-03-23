@@ -26,7 +26,6 @@ import java.net.Socket
 import java.net.SocketException
 import java.util.*
 import java.util.concurrent.ExecutorService
-import java.util.logging.Logger
 import kotlin.reflect.KFunction2
 
 private val LOGGER = KotlinLogging.logger { }
@@ -41,7 +40,9 @@ internal class Th2HttpServer(private val onRequest: KFunction2<RawHttpRequest, (
         Thread({
             while (true) {
                 try {
-                    executorService.submit { handle(socket.accept()) }
+                    val client = socket.accept()
+                    // thread waiting to accept socket before continue
+                    executorService.submit { handle(client) }
                 } catch (e: SocketException) {
                     LOGGER.error(e) { "Broken socket, trying to recreate..." }
                     recreateSocket()
