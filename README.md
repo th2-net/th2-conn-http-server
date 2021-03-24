@@ -5,8 +5,10 @@ This microservice allows performing HTTP responses and receive HTTP requests.
 ## Configuration
 
 Main configuration is done via setting following properties in a custom configuration:
++ **https** - set protocol for communication, `true` if you want to use `https` (`false` by default)
 + **port** - port for HTTP requests (`80` by default)
 + **sessionAlias** - session alias for incoming/outgoing TH2 messages (e.g. `rest_api`)
++ **threads** - number of socket-processing threads
 
 
 ### Configuration example
