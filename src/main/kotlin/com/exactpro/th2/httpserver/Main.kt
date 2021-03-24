@@ -21,9 +21,9 @@ import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageListener
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.storeEvent
-import com.exactpro.th2.httpserver.api.*
+import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.api.IResponseManager.ResponseManagerContext
-import com.exactpro.th2.httpserver.api.impl.*
+import com.exactpro.th2.httpserver.api.impl.BasicResponseManager
 import com.exactpro.th2.httpserver.server.Th2HttpServer
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.options.Th2ServerOptions
@@ -41,7 +41,8 @@ private val LOGGER = KotlinLogging.logger { }
 
 class Main {
     companion object {
-        @JvmStatic fun main(args: Array<String>) = try {
+        @JvmStatic
+        fun main(args: Array<String>) = try {
             val resources = ConcurrentLinkedDeque<Pair<String, () -> Unit>>()
 
             Runtime.getRuntime().addShutdownHook(thread(start = false, name = "shutdown-hook") {
@@ -96,13 +97,21 @@ class Main {
             }).id
 
             val options: ServerOptions = Th2ServerOptions(settings.https, settings.port, settings.threads)
+            val eventStore = { name: String, type: String, error: Throwable? ->
+                eventRouter.storeEvent(
+                    rootEventId,
+                    name,
+                    type,
+                    error
+                )
+            }
 
             responseManager.runCatching {
                 registerResource("response-manager", ::close)
                 init(ResponseManagerContext(connectionId, messageRouter))
             }.onFailure {
                 LOGGER.error(it) { "Failed to init response-manager" }
-                eventRouter.storeEvent(rootEventId, "Failed to init response-manager", "Error", it)
+                eventStore("Failed to init response-manager", "Error", it)
                 throw it
             }
 
@@ -110,7 +119,7 @@ class Main {
                 message.groupsList.forEach { group ->
                     group.runCatching(responseManager::handleResponse).recoverCatching {
                         LOGGER.error(it) { "Failed to handle message group: ${group.toPrettyString()}" }
-                        eventRouter.storeEvent(rootEventId, "Failed to handle message group: ${group.toPrettyString()}", "Error", it)
+                        eventStore("Failed to handle message group: ${group.toPrettyString()}", "Error", it)
                     }
                 }
             }
@@ -123,7 +132,7 @@ class Main {
                 throw IllegalStateException("Failed to subscribe to input queue", it)
             }
 
-            Th2HttpServer(responseManager::handleRequest,options).apply {
+            Th2HttpServer(responseManager::handleRequest, eventStore, options).apply {
                 registerResource("server", ::stop)
                 this.start()
             }
