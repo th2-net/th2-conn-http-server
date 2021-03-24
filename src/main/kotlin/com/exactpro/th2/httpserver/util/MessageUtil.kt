@@ -67,7 +67,7 @@ private fun ByteArrayOutputStream.toBatch(
 }.toBatch()
 
 private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, uuid: String): MessageGroupBatch {
-    val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString().replace(Regex("https?:[/][/][0-9]{0,3}[.][0-9]{0,3}[.][0-9]{0,3}[.][0-9]{0,3}[:][0-9]{2,4}"), ""), "uuid" to uuid) }
+    val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString(), "uuid" to uuid) }
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
         headers.writeTo(this)

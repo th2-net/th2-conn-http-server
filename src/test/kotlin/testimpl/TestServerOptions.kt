@@ -27,10 +27,10 @@ class TestServerOptions : ServerOptions {
     override fun createExecutorService(): ExecutorService {
         val threadCount = AtomicInteger(1)
         return Executors.newFixedThreadPool(24) { runnable: Runnable? ->
-            val t = Thread(runnable)
-            t.isDaemon = true
-            t.name = "th2-http-server-" + threadCount.incrementAndGet()
-            t
+            Thread(runnable).apply {
+                isDaemon = true
+                name = "th2-http-server-${threadCount.incrementAndGet()}"
+            }
         }
     }
 

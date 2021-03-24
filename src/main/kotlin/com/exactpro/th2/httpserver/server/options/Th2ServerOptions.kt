@@ -55,7 +55,6 @@ class Th2ServerOptions(
         if (!https) return ServerSocketFactory.getDefault()
 
         // set up key manager to do server authentication
-        val passphrase = "passphrase".toCharArray()
         val ctx: SSLContext = SSLContext.getInstance("TLSv1.2")
         //val kmf: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
         //val ks: KeyStore = KeyStore.getInstance("JKS")
@@ -69,10 +68,10 @@ class Th2ServerOptions(
     override fun createExecutorService(): ExecutorService {
         val threadCount = AtomicInteger(1)
         return Executors.newFixedThreadPool(threads) { runnable: Runnable? ->
-            val t = Thread(runnable)
-            t.isDaemon = true
-            t.name = "th2-http-server-" + threadCount.incrementAndGet()
-            t
+            Thread(runnable).apply {
+                isDaemon = true
+                name = "th2-http-server-${threadCount.incrementAndGet()}"
+            }
         }
     }
 }
