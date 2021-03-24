@@ -45,26 +45,31 @@ private const val REASON_PROPERTY = HEADERS_REASON_FIELD
 private const val DEFAULT_CODE = 200
 private const val DEFAULT_REASON = "OK"
 
-class Th2Response private constructor(statusLine: StatusLine, headers: RawHttpHeaders, bodyReader: BodyReader, val uuid: String) :
+class Th2Response private constructor(
+    statusLine: StatusLine,
+    headers: RawHttpHeaders,
+    bodyReader: BodyReader,
+    val uuid: String
+) :
     RawHttpResponse<MessageGroup>(null, null, statusLine, headers, bodyReader) {
 
     class Builder {
-        private val metadata = hashMapOf<String,String>()
+        private val metadata = hashMapOf<String, String>()
 
         private var head: Message = Message.getDefaultInstance()
         private var body: RawMessage = RawMessage.getDefaultInstance()
 
-        fun setHead(message: Message) : Builder {
+        fun setHead(message: Message): Builder {
             this.head = message
             return this
         }
 
-        fun setBody(message: RawMessage) : Builder {
+        fun setBody(message: RawMessage): Builder {
             this.body = message
             return this
         }
 
-        fun setGroup(messages: MessageGroup) : Builder {
+        fun setGroup(messages: MessageGroup): Builder {
             when (messages.messagesCount) {
                 0 -> error("Message group is empty")
                 1 -> messages.getMessages(0).run {
@@ -89,14 +94,17 @@ class Th2Response private constructor(statusLine: StatusLine, headers: RawHttpHe
             val code: Int = head.getInt(HEADERS_CODE_FIELD) ?: metadata[CODE_PROPERTY]?.toInt() ?: DEFAULT_CODE
             val reason = head.getString(HEADERS_REASON_FIELD) ?: metadata[REASON_PROPERTY] ?: DEFAULT_REASON
             val statusLine = StatusLine(HttpVersion.HTTP_1_1, code, reason)
-            val httpBody = body.body.toByteArray().takeIf(ByteArray::isNotEmpty)
+            val httpBody = body.body.toByteArray()
 
             val httpHeaders = RawHttpHeaders.newBuilder()
+            httpHeaders.overwrite("Content-Length", httpBody.size.toString())
             head.getList(HEADERS_FIELD)?.forEach {
                 require(it.hasMessageValue()) { "Item of '$HEADERS_FIELD' field list is not a message: ${it.toPrettyString()}" }
                 val message = it.messageValue
-                val name = message.getString(HEADER_NAME_FIELD) ?: error("Header message has no $HEADER_NAME_FIELD field: ${message.toPrettyString()}")
-                val value = message.getString(HEADER_VALUE_FIELD) ?: error("Header message has no $HEADER_VALUE_FIELD field: ${message.toPrettyString()}")
+                val name = message.getString(HEADER_NAME_FIELD)
+                    ?: error("Header message has no $HEADER_NAME_FIELD field: ${message.toPrettyString()}")
+                val value = message.getString(HEADER_VALUE_FIELD)
+                    ?: error("Header message has no $HEADER_VALUE_FIELD field: ${message.toPrettyString()}")
                 httpHeaders.overwrite(name, value)
             }
             if (httpBody != null && CONTENT_TYPE_HEADER !in httpHeaders.headerNames) {
