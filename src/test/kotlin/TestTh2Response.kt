@@ -21,8 +21,6 @@ import mu.KotlinLogging
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
-private val LOGGER = KotlinLogging.logger { }
-
 class TestTh2Response {
 
     @Test
@@ -30,8 +28,6 @@ class TestTh2Response {
         val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
             addField("code", 500)
             addField("reason", "Test reason")
-            addField("TestFieldThree", "Three")
-            //addField("headers",)
             metadataBuilder.protocol = "http"
             metadataBuilder.putProperties("uuid", "test-uuid")
         }.build()
@@ -46,7 +42,7 @@ class TestTh2Response {
         Assertions.assertEquals("Test reason", response.startLine.reason)
         Assertions.assertEquals("test-uuid", response.uuid)
         Assertions.assertEquals("application", response.headers["content-type"][0])
-
+        Assertions.assertEquals("10", response.headers["content-length"][0])
 
     }
 }
