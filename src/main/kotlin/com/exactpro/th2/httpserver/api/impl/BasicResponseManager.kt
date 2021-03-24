@@ -14,7 +14,10 @@
 package com.exactpro.th2.httpserver.api.impl
 
 
+import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.MessageGroup
+import com.exactpro.th2.common.grpc.MessageGroupBatch
+import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.httpserver.api.IResponseManager.*
 import com.exactpro.th2.httpserver.api.IResponseManager
@@ -29,26 +32,30 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.collections.HashMap
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 class BasicResponseManager : IResponseManager {
 
     private val logger = KotlinLogging.logger {}
-    private val dialogs = HashMap<String,RequestData>()
+    private val dialogs = ConcurrentHashMap<String, RequestData>()
+
     data class RequestData(val request: RawHttpRequest, val answer: (RawHttpResponse<*>) -> Unit)
 
-    private val generateSequenceRequest = Instant.now().run {
+    private val generateSequenceRequest = generateSequence()
+
+    private val generateSequenceResponse = generateSequence()
+
+    private fun generateSequence() = Instant.now().run {
         AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
     }::incrementAndGet
 
-    private val generateSequenceResponse = Instant.now().run {
-        AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
-    }::incrementAndGet
-
-    private lateinit var context: ResponseManagerContext
+    private lateinit var connectionID: ConnectionID
+    private lateinit var messageRouter: MessageRouter<MessageGroupBatch>
 
     override fun init(value: ResponseManagerContext) {
-        check(!::context.isInitialized) { "Response manager is already initialized" }
-        context = value
+        check(!::connectionID.isInitialized && !::messageRouter.isInitialized) { "Response manager is already initialized" }
+        connectionID = value.connectionID
+        messageRouter = value.messageRouter
     }
 
     override fun handleRequest(request: RawHttpRequest, answer: (RawHttpResponse<*>) -> Unit) {
@@ -56,12 +63,12 @@ class BasicResponseManager : IResponseManager {
         dialogs[uuid] = RequestData(request, answer)
         logger.debug("Stored dialog: $uuid")
         publishMessage(request, uuid)
-        logger.debug("Send on alias: ${context.connectionID.sessionAlias}")
+        logger.debug("Send on alias: ${connectionID.sessionAlias}")
     }
 
     override fun handleResponse(messages: MessageGroup) {
         val response = Th2Response.Builder().setGroup(messages).build()
-        val data = dialogs[response.uuid] ?: throw IllegalArgumentException("UUID is not present in store")
+        val data = dialogs.remove(response.uuid) ?: throw IllegalArgumentException("UUID is not present in store")
         data.answer(response)
         publishMessage(data.request, response)
     }
@@ -71,15 +78,17 @@ class BasicResponseManager : IResponseManager {
     }
 
     private fun publishMessage(request: RawHttpRequest, uuid: String) {
-        context.messageRouter.sendAll(
-            request.toBatch(context.connectionID, generateSequenceRequest(), uuid),
-            QueueAttribute.SECOND.toString())
+        messageRouter.sendAll(
+            request.toBatch(connectionID, generateSequenceRequest(), uuid),
+            QueueAttribute.SECOND.toString()
+        )
     }
 
     private fun publishMessage(request: RawHttpRequest, response: Th2Response) {
-        context.messageRouter.sendAll(
-            response.toBatch(context.connectionID, generateSequenceResponse(), request),
-            QueueAttribute.FIRST.toString())
+        messageRouter.sendAll(
+            response.toBatch(connectionID, generateSequenceResponse(), request),
+            QueueAttribute.FIRST.toString()
+        )
     }
 
 }
