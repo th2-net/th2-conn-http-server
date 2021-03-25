@@ -19,10 +19,13 @@ import rawhttp.core.RawHttpResponse
 import rawhttp.core.client.TcpRawHttpClient
 import java.net.Socket
 import java.net.URI
+import java.time.Instant
 import java.util.concurrent.ExecutorService
 
 class TestClientOptions(private val https: Boolean = false) : TcpRawHttpClient.DefaultOptions() {
     private val logger = KotlinLogging.logger {}
+    private val socketExpirationTimes = mutableMapOf<Socket, Long>()
+
 
     override fun onRequest(httpRequest: RawHttpRequest): RawHttpRequest {
         val request = httpRequest.eagerly()
@@ -38,5 +41,26 @@ class TestClientOptions(private val https: Boolean = false) : TcpRawHttpClient.D
 
     override fun createSocket(useHttps: Boolean, host: String, port: Int): Socket {
         return super.createSocket(https, host, port)
+    }
+
+    override fun getSocket(uri: URI): Socket = super.getSocket(uri).let { socket ->
+        val currentTime = System.currentTimeMillis()
+
+        socketExpirationTimes[socket]?.let { expirationTime ->
+            if (currentTime > expirationTime) {
+                logger.debug { "Removing inactive socket: $socket (expired at: ${Instant.ofEpochMilli(expirationTime)})" }
+                socketExpirationTimes -= socket
+                socket.runCatching { close() }
+                removeSocket(socket)
+                return getSocket(uri)
+            }
+        }
+
+        socketExpirationTimes[socket] = currentTime + 20000
+        socket.apply { soTimeout = 5000 }
+    }
+
+    override fun removeSocket(socket: Socket) {
+        socketExpirationTimes -= socket
     }
 }

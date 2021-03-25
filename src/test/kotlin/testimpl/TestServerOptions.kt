@@ -13,25 +13,35 @@
 
 package testimpl
 
+import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.httpserver.server.options.ServerOptions
+import com.exactpro.th2.httpserver.util.toBatch
+import rawhttp.core.RawHttpRequest
 import java.net.ServerSocket
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 class TestServerOptions : ServerOptions {
+    var queue = ConcurrentLinkedQueue<String>()
+
     override fun createSocket(): ServerSocket {
         return ServerSocket(GlobalVariables.PORT)
     }
 
     override fun createExecutorService(): ExecutorService {
         val threadCount = AtomicInteger(1)
-        return Executors.newFixedThreadPool(24) { runnable: Runnable? ->
+        return Executors.newFixedThreadPool(12) { runnable: Runnable? ->
             Thread(runnable).apply {
                 isDaemon = true
                 name = "th2-http-server-${threadCount.incrementAndGet()}"
             }
         }
+    }
+
+    override fun onRequest(request: RawHttpRequest, id: String) {
+        queue.add(id)
     }
 
 }

@@ -29,7 +29,6 @@ import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpResponse
 import rawhttp.core.client.TcpRawHttpClient
 import testimpl.TestClientOptions
-import testimpl.TestResponseManager
 import testimpl.TestServerOptions
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
@@ -41,21 +40,25 @@ private val LOGGER = KotlinLogging.logger { }
 
 class TestServerResponse {
     companion object {
-        private val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
-            addField("code", 200)
-            addField("reason", "Test reason")
-            addField("TestFieldThree", "Three")
-            metadataBuilder.protocol = "http"
-            metadataBuilder.putProperties("uuid", "test-uuid")
-        }.build().apply { LOGGER.debug { "Header message is created" } }
+        val response =  { uuid: String  ->
+            val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
+                addField("code", 200)
+                addField("reason", "Test reason")
+                addField("TestFieldThree", "Three")
+                metadataBuilder.protocol = "http"
+                metadataBuilder.putProperties("uuid", uuid)
+            }.build().apply { LOGGER.debug { "Header message is created" } }
 
-        private val bodyMessage = RawMessage.newBuilder().apply {
-            body = ByteString.copyFrom("SOME BYTES".toByteArray())
-            metadata = metadataBuilder.putProperties("contentType", "application").build()
-        }.build().apply { LOGGER.debug { "Body message is created" } }
+            val bodyMessage = RawMessage.newBuilder().apply {
+                body = ByteString.copyFrom("SOME BYTES".toByteArray())
+                metadata = metadataBuilder.putProperties("contentType", "application").build()
+            }.build().apply { LOGGER.debug { "Body message is created" } }
 
-        private val response = Th2Response.Builder().setHead(responseMessage).setBody(bodyMessage).build()
-        private val th2server = Th2HttpServer(TestResponseManager(response)::handleRequest, null, TestServerOptions())
+            Th2Response.Builder().setHead(responseMessage).setBody(bodyMessage).build()
+        }
+
+        private val options = TestServerOptions()
+        private val th2server = Th2HttpServer(null, options)
 
         @BeforeAll
         @JvmStatic
@@ -103,39 +106,44 @@ class TestServerResponse {
 
         val futures = mutableListOf<Future<RawHttpResponse<*>>>()
 
-        val maxTimes = 20
+        val maxTimes = 30
 
-        for (i in 0 until maxTimes) {
-            futures.add(executor.submit(
-                Callable {
-                    client.send(request).eagerly()
-                }
-            ))
-        }
         val stopwatch: Stopwatch = Stopwatch.createStarted()
 
+        try {
+            for (i in 0 until maxTimes) {
 
-        for (i in 0 until maxTimes) {
+                futures.add(executor.submit(
+                    Callable {
+                        client.send(request)
+                    }
+                ))
 
-            val sec = stopwatch.elapsed(TimeUnit.SECONDS)
+                val sec = stopwatch.elapsed(TimeUnit.SECONDS)
+                while(options.queue.isEmpty()) {
+                    TimeUnit.MILLISECONDS.sleep(50L)
+                }
+                val th2response = response(options.queue.remove())
+                LOGGER.info("that took: $sec sec") // formatted string like "12.3 ms"
 
-            LOGGER.info("that took: $sec sec") // formatted string like "12.3 ms"
+                th2server.handleResponse(th2response)
 
-            futures[i].runCatching {
-                val response = get(10, TimeUnit.SECONDS).apply { LOGGER.debug { "Feature returned response" } }
-                assertEquals(response.statusCode, 200)
-            }.onFailure {
-                fail { "Can't get response ${i + 1}: \n$it" }
-            }.onSuccess {
-                LOGGER.debug { "${i + 1} test passed" }
+                futures[i].runCatching {
+                    val response = get(10, TimeUnit.SECONDS).apply { LOGGER.debug { "Feature returned response" } }
+                    assertEquals(response.statusCode, 200)
+                }.onFailure {
+                    fail { "Can't get response ${i + 1}: \n$it" }
+                }.onSuccess {
+                    LOGGER.debug { "${i + 1} test passed" }
+                }
+
+                stopwatch.reset()
             }
-
-
-
-            stopwatch.reset()
+        } catch (e: Exception) {
+            LOGGER.error(e) { "Can't handle stress test with max: $maxTimes" }
+        } finally {
+            client.close()
         }
-
-        client.close()
     }
 
 }

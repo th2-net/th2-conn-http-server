@@ -96,7 +96,7 @@ class Main {
                 type("Microservice")
             }).id
 
-            val options: ServerOptions = Th2ServerOptions(settings.https, settings.port, settings.threads)
+            val options = Th2ServerOptions(settings.https, settings.port, settings.threads, connectionId, messageRouter)
             val eventStore = { name: String, type: String, error: Throwable? ->
                 eventRouter.storeEvent(
                     rootEventId,
@@ -106,14 +106,7 @@ class Main {
                 )
             }
 
-            responseManager.runCatching {
-                registerResource("response-manager", ::close)
-                init(ResponseManagerContext(connectionId, messageRouter))
-            }.onFailure {
-                LOGGER.error(it) { "Failed to init response-manager" }
-                eventStore("Failed to init response-manager", "Error", it)
-                throw it
-            }
+
 
             val listener = MessageListener<MessageGroupBatch> { _, message ->
                 message.groupsList.forEach { group ->
@@ -132,10 +125,20 @@ class Main {
                 throw IllegalStateException("Failed to subscribe to input queue", it)
             }
 
-            Th2HttpServer(responseManager::handleRequest, eventStore, options).apply {
+            val server = Th2HttpServer(eventStore, options).apply {
                 registerResource("server", ::stop)
-                this.start()
             }
+
+            responseManager.runCatching {
+                registerResource("response-manager", ::close)
+                init(ResponseManagerContext(server::handleResponse))
+            }.onFailure {
+                LOGGER.error(it) { "Failed to init response-manager" }
+                eventStore("Failed to init response-manager", "Error", it)
+                throw it
+            }
+
+            server.start()
         }
 
         data class Settings(
