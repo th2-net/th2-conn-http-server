@@ -60,7 +60,7 @@ class Th2Response private constructor(
         private var body: RawMessage = RawMessage.getDefaultInstance()
 
         fun setHead(message: Message): Builder {
-            this.head = message
+            this.head = message.requireType(RESPONSE_MESSAGE)
             return this
         }
 
