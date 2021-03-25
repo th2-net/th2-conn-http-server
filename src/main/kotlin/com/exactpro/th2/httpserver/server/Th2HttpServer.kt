@@ -15,6 +15,7 @@ package com.exactpro.th2.httpserver.server
 
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.httpserver.server.options.ServerOptions
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
 import rawhttp.core.*
 import rawhttp.core.body.BodyReader
@@ -26,6 +27,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import kotlin.reflect.KFunction2
 import java.util.concurrent.TimeUnit
@@ -35,7 +37,6 @@ import java.util.logging.Logger
 private val LOGGER = KotlinLogging.logger { }
 
 internal class Th2HttpServer(
-    private val onRequest: (RawHttpRequest, (RawHttpResponse<*>) -> Unit) -> Unit,
     private val eventStore: ((String, String, Throwable?) -> Event)?,
     private val options: ServerOptions
 ) : HttpServer {
@@ -51,6 +52,8 @@ internal class Th2HttpServer(
     private val executorService: ExecutorService = options.createExecutorService()
     private val http: RawHttp = options.getRawHttp()
     private var listen: Boolean = true
+    private val dialogs = ConcurrentHashMap<String, Dialog>()
+
 
     override fun start() {
         Thread({
@@ -85,8 +88,9 @@ internal class Th2HttpServer(
                     (client.remoteSocketAddress as InetSocketAddress).address
                 )
 
-                val requestEagerly = request.eagerly()
-                options.onRequest(requestEagerly)
+                val requestEagerly = request.eagerly().apply { LOGGER.debug("Received request: \n$this\n") }
+                val uuid = UUID.randomUUID().toString()
+                options.onRequest(requestEagerly, uuid)
 
                 val connectionOption = request.headers.getFirst("Connection")
                 serverWillCloseConnection =
@@ -94,15 +98,12 @@ internal class Th2HttpServer(
                 if (!serverWillCloseConnection) serverWillCloseConnection =
                     !keepAlive(request.startLine.httpVersion, connectionOption)
 
-                LOGGER.debug("Request: \n$requestEagerly\nwas send from client$")
 
-                onRequest(requestEagerly) { res: RawHttpResponse<*> ->
-                    val response =
-                        options.prepareResponse(requestEagerly, res).apply { writeTo(client.getOutputStream()) }
-                    LOGGER.debug("Response: \n$response\nwas send to client")
-                    options.onResponse(requestEagerly, response)
-                    closeBodyOf(response)
+                if (!serverWillCloseConnection) {
+                    dialogs[uuid] = Dialog(requestEagerly, client)
+                    LOGGER.debug("Stored dialog: $uuid")
                 }
+
             } catch (e: Exception) {
                 if (e !is SocketException && e is InvalidHttpRequest && e.lineNumber == 0) {
                     LOGGER.info(e) { "Client closed connection, socket isn't open" }
@@ -116,13 +117,41 @@ internal class Th2HttpServer(
         }
     }
 
+    fun handleResponse(response: Th2Response) {
+        LOGGER.debug { "Message processing for ${response.uuid} has been started " }
+        try {
+            val dialog = dialogs.remove(response.uuid)
+            dialog?.let {
+                options.prepareResponse(it.request, response).apply {
+                    writeTo(it.socket.getOutputStream())
+                    options.onResponse(it.request, response)
+                }
+                LOGGER.debug("Response: \n$response\nwas send to client")
+            } ?: run {
+                serverError(
+                    "Failed to handle response, no matching client found. Response: /n$response",
+                    "Failed to handle response, no matching client found",
+                    null
+                )
+            }
+        } catch (e: SocketException) {
+            serverError(
+                "Failed to handle response, socket is broken. Response: /n$response",
+                "Failed to handle response, socket is broken",
+                e
+            )
+        } finally {
+            closeBodyOf(response)
+        }
+    }
+
     override fun stop() {
         LOGGER.debug("\nThe Server is shutting down\n")
         listen = false
         try {
             socket.close()
         } catch (e: IOException) {
-            LOGGER.warn(e) {"Failed to close socket"}
+            LOGGER.warn(e) { "Failed to close socket" }
         } finally {
             executorService.shutdown()
             if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
@@ -137,7 +166,7 @@ internal class Th2HttpServer(
             try {
                 b.close()
             } catch (e: IOException) {
-                LOGGER.warn(e) {"Body of message may be already closed"}
+                LOGGER.warn(e) { "Body of message may be already closed" }
             }
         }
     }
@@ -163,5 +192,7 @@ internal class Th2HttpServer(
             LOGGER.error(throwable) { log }
         }
     }
+
+    data class Dialog(val request: RawHttpRequest, val socket: Socket)
 
 }

@@ -17,35 +17,32 @@ import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.exactpro.th2.httpserver.util.toBatch
 import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.net.ServerSocket
 import java.time.Instant
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import javax.net.ServerSocketFactory
-import java.io.FileInputStream
-import java.lang.Exception
-
-import java.security.KeyStore
-import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
-
-import javax.net.ssl.SSLServerSocketFactory
 
 
 class Th2ServerOptions(
     private val https: Boolean,
     private val port: Int,
-    private val threads: Int
+    private val threads: Int,
+    private val connectionID: ConnectionID,
+    private val messageRouter: MessageRouter<MessageGroupBatch>
 ) : ServerOptions {
 
     private val logger = KotlinLogging.logger {}
+
+    private val generateSequenceRequest = sequenceGenerator()
+    private val generateSequenceResponse = sequenceGenerator()
 
     override fun createSocket(): ServerSocket {
         return getFactory().createServerSocket(port).apply { logger.info("Created server socket on port:${port}") }
@@ -74,4 +71,20 @@ class Th2ServerOptions(
             }
         }
     }
+
+    override fun onRequest(request: RawHttpRequest, id: String) {
+        messageRouter.sendAll(
+            request.toBatch(connectionID, generateSequenceRequest(), id),
+            QueueAttribute.SECOND.toString())
+    }
+
+    override fun <T : RawHttpResponse<*>> onResponse(request: RawHttpRequest, response: T) {
+        messageRouter.sendAll(
+            response.toBatch(connectionID, generateSequenceResponse(), request),
+            QueueAttribute.FIRST.toString())
+    }
+
+    private fun sequenceGenerator() = Instant.now().run {
+        AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
+    }::incrementAndGet
 }

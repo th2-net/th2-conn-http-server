@@ -18,6 +18,7 @@ import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.impl.rabbitmq.AbstractRabbitMessageRouter
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import rawhttp.core.client.RawHttpClient
@@ -27,9 +28,6 @@ interface IResponseManager : AutoCloseable {
 
     fun init(value: ResponseManagerContext)
 
-    fun handleRequest(request: RawHttpRequest, answer: (RawHttpResponse<*>) -> Unit)
-
     fun handleResponse(messages: MessageGroup)
 
-    data class ResponseManagerContext(val connectionID: ConnectionID, val messageRouter: MessageRouter<MessageGroupBatch>)
-}
+    data class ResponseManagerContext(val answer: (Th2Response) -> Unit)}

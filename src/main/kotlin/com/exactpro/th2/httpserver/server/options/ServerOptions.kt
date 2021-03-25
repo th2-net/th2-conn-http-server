@@ -17,8 +17,6 @@ import rawhttp.core.*
 import java.io.IOException
 import java.net.ServerSocket
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicInteger
 
 interface ServerOptions {
 
@@ -45,9 +43,9 @@ interface ServerOptions {
      */
     fun createExecutorService(): ExecutorService
 
-    fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<*>): RawHttpResponse<*> = response
+    fun <T:RawHttpResponse<*>> prepareResponse(request: RawHttpRequest, response: T): T = response
 
-    fun onRequest(request: RawHttpRequest) = Unit
+    fun onRequest(request: RawHttpRequest, id: String) = Unit
 
-    fun onResponse(request: RawHttpRequest, response: RawHttpResponse<*>) = Unit
+    fun <T:RawHttpResponse<*>> onResponse(request: RawHttpRequest, response: T) = Unit
 }
