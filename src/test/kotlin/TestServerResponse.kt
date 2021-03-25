@@ -75,23 +75,6 @@ class TestServerResponse {
     }
 
     @Test
-    fun test() {
-        val client = TcpRawHttpClient(TestClientOptions())
-        val request = RawHttp().parseRequest(
-            """
-            GET / HTTP/1.1
-            Host: localhost:${GlobalVariables.PORT}
-            User-Agent: client RawHTTP
-            """.trimIndent()
-        )
-
-        val response: RawHttpResponse<*> = client.send(request).eagerly()
-
-        assertEquals(response.statusCode, 200)
-        client.close()
-    }
-
-    @Test
     fun stressTest() {
         val client = TcpRawHttpClient(TestClientOptions())
         val request = RawHttp().parseRequest(
