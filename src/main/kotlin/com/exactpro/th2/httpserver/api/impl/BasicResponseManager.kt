@@ -14,38 +14,23 @@
 package com.exactpro.th2.httpserver.api.impl
 
 
-import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.MessageGroup
-import com.exactpro.th2.common.grpc.MessageGroupBatch
-import com.exactpro.th2.common.schema.message.MessageRouter
-import com.exactpro.th2.common.schema.message.QueueAttribute
-import com.exactpro.th2.httpserver.api.IResponseManager.*
 import com.exactpro.th2.httpserver.api.IResponseManager
+import com.exactpro.th2.httpserver.api.IResponseManager.ResponseManagerContext
 import com.exactpro.th2.httpserver.server.responses.Th2Response
-import com.exactpro.th2.httpserver.util.*
 import mu.KotlinLogging
-import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
-import java.lang.IllegalArgumentException
-import java.time.Instant
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicLong
-import kotlin.collections.HashMap
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 class BasicResponseManager : IResponseManager {
 
     private val logger = KotlinLogging.logger {}
 
-    private lateinit var answer : (Th2Response) -> Unit
+    private lateinit var answer: (RawHttpResponse<Th2Response>) -> Unit
 
     override fun init(value: ResponseManagerContext) {
-        check(!::answer.isInitialized ) { "Response manager is already initialized" }
+        check(!::answer.isInitialized) { "Response manager is already initialized" }
         answer = value.answer
     }
-
-
 
     override fun handleResponse(messages: MessageGroup) {
         logger.debug { "Handling message from mq (Response)" }

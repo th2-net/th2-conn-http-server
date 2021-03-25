@@ -22,9 +22,9 @@ import org.junit.jupiter.api.Test
 class TestTh2Response {
 
     @Test
-    fun th2ResponseTest() {
+    fun contentLengthTest() {
         // Auto generation of content length and content type overwrite check
-        var response = Th2Response.Builder().setHead(
+        val response = Th2Response.Builder().setHead(
             createHeadMessage(
                 500, uuid = "test-uuid",
                 reason = "Test reason"
@@ -36,14 +36,17 @@ class TestTh2Response {
             )
         ).build()
 
+        Assertions.assertTrue(response.libResponse.isPresent)
         Assertions.assertEquals(500, response.statusCode)
         Assertions.assertEquals("Test reason", response.startLine.reason)
-        Assertions.assertEquals("test-uuid", response.uuid)
+        Assertions.assertEquals("test-uuid", response.libResponse.get().uuid)
         Assertions.assertEquals("application", response.headers["content-type"][0])
         Assertions.assertEquals("10", response.headers["content-length"][0])
+    }
 
-        // Overwrite check
-        response = Th2Response.Builder().setHead(
+    @Test
+    fun overwriteTest() {
+        val response = Th2Response.Builder().setHead(
             createHeadMessage(
                 404, uuid = "0-0-0-0-0",
                 reason = "Non",
@@ -54,15 +57,19 @@ class TestTh2Response {
                 body = "SOME BYTES".toByteArray()
             )
         ).build()
+
+        Assertions.assertTrue(response.libResponse.isPresent)
         Assertions.assertEquals(404, response.statusCode)
         Assertions.assertEquals("Non", response.startLine.reason)
-        Assertions.assertEquals("0-0-0-0-0", response.uuid)
+        Assertions.assertEquals("0-0-0-0-0", response.libResponse.get().uuid)
         Assertions.assertEquals(emptyList<String>(), response.headers["content-type"])
         Assertions.assertEquals("5", response.headers["content-length"][0])
+    }
 
-
+    @Test
+    fun autoGenerationTest() {
         // Auto generation check
-        response = Th2Response.Builder().setHead(
+        val response = Th2Response.Builder().setHead(
             createHeadMessage(
                 uuid = "0-0-0-0-0",
                 contentLength = 4
@@ -73,9 +80,10 @@ class TestTh2Response {
             )
         ).build()
 
+        Assertions.assertTrue(response.libResponse.isPresent)
         Assertions.assertEquals(200, response.statusCode)
         Assertions.assertEquals("OK", response.startLine.reason)
-        Assertions.assertEquals("0-0-0-0-0", response.uuid)
+        Assertions.assertEquals("0-0-0-0-0", response.libResponse.get().uuid)
         Assertions.assertEquals(emptyList<String>(), response.headers["content-type"])
         Assertions.assertEquals("4", response.headers["content-length"][0])
     }
