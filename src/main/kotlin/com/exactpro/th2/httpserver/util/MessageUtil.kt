@@ -43,6 +43,20 @@ private inline operator fun <T : Builder> T.invoke(block: T.() -> Unit) = apply(
 
 fun MessageOrBuilder.toPrettyString(): String = JsonFormat.printer().omittingInsignificantWhitespace().includingDefaultValueFields().print(this)
 
+fun Message.requireType(type: String): Message = apply {
+    check(metadata.messageType == type) { "Invalid message type: $type" }
+}
+
+fun AnyMessage.toParsed(name: String): Message = run {
+    require(hasMessage()) { "$name is not a parsed message: ${toPrettyString()}" }
+    message
+}
+
+fun AnyMessage.toRaw(name: String): RawMessage = run {
+    require(hasRawMessage()) { "$name is not a raw message: ${toPrettyString()}" }
+    rawMessage
+}
+
 private fun RawMessage.Builder.toBatch() = run(AnyMessage.newBuilder()::setRawMessage)
     .run(MessageGroup.newBuilder()::addMessages)
     .run(MessageGroupBatch.newBuilder()::addGroups)

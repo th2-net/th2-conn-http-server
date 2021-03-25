@@ -13,19 +13,21 @@
 
 package com.exactpro.th2.httpserver.server.responses
 
-import com.exactpro.th2.common.grpc.AnyMessage
 import com.exactpro.th2.common.grpc.Message
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.getInt
 import com.exactpro.th2.common.message.getList
 import com.exactpro.th2.common.message.getString
+import com.exactpro.th2.httpserver.util.requireType
+import com.exactpro.th2.httpserver.util.toParsed
 import com.exactpro.th2.httpserver.util.toPrettyString
-import rawhttp.core.*
-import rawhttp.core.body.BodyReader
-import rawhttp.core.body.BytesBody
 import rawhttp.core.body.EagerBodyReader
-import java.nio.charset.StandardCharsets
+import com.exactpro.th2.httpserver.util.toRaw
+import rawhttp.core.HttpVersion
+import rawhttp.core.RawHttpHeaders
+import rawhttp.core.RawHttpResponse
+import rawhttp.core.StatusLine
 
 private const val RESPONSE_MESSAGE = "Response"
 
@@ -45,14 +47,7 @@ private const val REASON_PROPERTY = HEADERS_REASON_FIELD
 private const val DEFAULT_CODE = 200
 private const val DEFAULT_REASON = "OK"
 
-class Th2Response private constructor(
-    statusLine: StatusLine,
-    headers: RawHttpHeaders,
-    bodyReader: BodyReader,
-    val uuid: String
-) :
-    RawHttpResponse<MessageGroup>(null, null, statusLine, headers, bodyReader) {
-
+data class Th2Response (val uuid: String) {
     class Builder {
         private val metadata = hashMapOf<String, String>()
 
@@ -74,21 +69,21 @@ class Th2Response private constructor(
                 0 -> error("Message group is empty")
                 1 -> messages.getMessages(0).run {
                     when {
-                        hasMessage() -> head = message.requireType(RESPONSE_MESSAGE)
-                        hasRawMessage() -> body = rawMessage
+                        hasMessage() -> setHead(message)
+                        hasRawMessage() -> setBody(rawMessage)
                         else -> error("Single message in group is neither parsed nor raw: ${toPrettyString()}")
                     }
                 }
                 2 -> {
-                    head = messages.getMessages(0).toParsed("Head").requireType(RESPONSE_MESSAGE)
-                    body = messages.getMessages(1).toRaw("Body")
+                    setHead(messages.getMessages(0).toParsed("Head"))
+                    setBody(messages.getMessages(1).toRaw("Body"))
                 }
                 else -> error("Message group contains more than 2 messages")
             }
             return this
         }
 
-        fun build(): Th2Response {
+        fun build(): RawHttpResponse<Th2Response> {
             metadata.putAll(body.metadata.propertiesMap)
 
             val code: Int = head.getInt(HEADERS_CODE_FIELD) ?: metadata[CODE_PROPERTY]?.toInt() ?: DEFAULT_CODE
@@ -116,23 +111,9 @@ class Th2Response private constructor(
             }
             val uuid = head.metadata.propertiesMap["uuid"] ?: body.metadata.propertiesMap["uuid"]
             checkNotNull(uuid) { "UUID is required" }
-            return Th2Response(statusLine, httpHeaders.build(), EagerBodyReader(httpBody), uuid)
+            return RawHttpResponse<Th2Response>(Th2Response(uuid),null, statusLine, httpHeaders.build(), EagerBodyReader(httpBody))
         }
 
     }
-}
-
-private fun Message.requireType(type: String): Message = apply {
-    check(metadata.messageType == type) { "Invalid message type: $type" }
-}
-
-private fun AnyMessage.toParsed(name: String): Message = run {
-    require(hasMessage()) { "$name is not a parsed message: ${toPrettyString()}" }
-    message
-}
-
-private fun AnyMessage.toRaw(name: String): RawMessage = run {
-    require(hasRawMessage()) { "$name is not a raw message: ${toPrettyString()}" }
-    rawMessage
 }
 

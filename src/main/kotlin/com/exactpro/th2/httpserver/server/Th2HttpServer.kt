@@ -22,6 +22,7 @@ import rawhttp.core.body.BodyReader
 import rawhttp.core.errors.InvalidHttpRequest
 import java.io.IOException
 import java.lang.Exception
+import java.lang.NullPointerException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -117,11 +118,11 @@ internal class Th2HttpServer(
         }
     }
 
-    fun handleResponse(response: Th2Response) {
-        LOGGER.debug { "Message processing for ${response.uuid} has been started " }
+    fun handleResponse(response: RawHttpResponse<Th2Response>) {
         try {
-            val dialog = dialogs.remove(response.uuid)
-            dialog?.let {
+            val uuid: String = response.libResponse.get().uuid
+            LOGGER.debug { "Message processing for $uuid has been started " }
+            dialogs.remove(uuid)?.let {
                 options.prepareResponse(it.request, response).apply {
                     writeTo(it.socket.getOutputStream())
                     options.onResponse(it.request, response)
@@ -138,6 +139,13 @@ internal class Th2HttpServer(
             serverError(
                 "Failed to handle response, socket is broken. Response: /n$response",
                 "Failed to handle response, socket is broken",
+                e
+            )
+        }
+        catch (e: NoSuchElementException) {
+            serverError(
+                "Response is broken, please check api realization. Need to provide Th2Response object inside response",
+                "Failed to handle response",
                 e
             )
         } finally {
