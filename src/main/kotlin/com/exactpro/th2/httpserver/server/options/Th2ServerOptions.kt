@@ -74,13 +74,15 @@ class Th2ServerOptions(
     override fun onRequest(request: RawHttpRequest, id: String) {
         messageRouter.sendAll(
             request.toBatch(connectionID, generateSequenceRequest(), id),
-            QueueAttribute.SECOND.toString())
+            QueueAttribute.SECOND.toString()
+        )
     }
 
     override fun <T : RawHttpResponse<*>> onResponse(request: RawHttpRequest, response: T) {
         messageRouter.sendAll(
             response.toBatch(connectionID, generateSequenceResponse(), request),
-            QueueAttribute.FIRST.toString())
+            QueueAttribute.FIRST.toString()
+        )
     }
 
     private fun sequenceGenerator() = Instant.now().run {

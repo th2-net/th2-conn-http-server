@@ -43,9 +43,9 @@ interface ServerOptions {
      */
     fun createExecutorService(): ExecutorService
 
-    fun <T:RawHttpResponse<*>> prepareResponse(request: RawHttpRequest, response: T): T = response
+    fun <T : RawHttpResponse<*>> prepareResponse(request: RawHttpRequest, response: T): T = response
 
     fun onRequest(request: RawHttpRequest, id: String) = Unit
 
-    fun <T:RawHttpResponse<*>> onResponse(request: RawHttpRequest, response: T) = Unit
+    fun <T : RawHttpResponse<*>> onResponse(request: RawHttpRequest, response: T) = Unit
 }

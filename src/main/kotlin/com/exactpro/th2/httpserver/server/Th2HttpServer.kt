@@ -42,7 +42,6 @@ internal class Th2HttpServer(
     private val options: ServerOptions
 ) : HttpServer {
 
-
     init {
         if (eventStore == null) {
             LOGGER.warn { "Event router is null, messages will not be send to event store!" }
@@ -141,8 +140,7 @@ internal class Th2HttpServer(
                 "Failed to handle response, socket is broken",
                 e
             )
-        }
-        catch (e: NoSuchElementException) {
+        } catch (e: NoSuchElementException) {
             serverError(
                 "Response is broken, please check api realization. Need to provide Th2Response object inside response",
                 "Failed to handle response",

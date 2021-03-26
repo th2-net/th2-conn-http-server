@@ -47,7 +47,7 @@ private const val REASON_PROPERTY = HEADERS_REASON_FIELD
 private const val DEFAULT_CODE = 200
 private const val DEFAULT_REASON = "OK"
 
-data class Th2Response (val uuid: String) {
+data class Th2Response(val uuid: String) {
     class Builder {
         private val metadata = hashMapOf<String, String>()
 
@@ -111,7 +111,13 @@ data class Th2Response (val uuid: String) {
             }
             val uuid = head.metadata.propertiesMap["uuid"] ?: body.metadata.propertiesMap["uuid"]
             checkNotNull(uuid) { "UUID is required" }
-            return RawHttpResponse<Th2Response>(Th2Response(uuid),null, statusLine, httpHeaders.build(), EagerBodyReader(httpBody))
+            return RawHttpResponse<Th2Response>(
+                Th2Response(uuid),
+                null,
+                statusLine,
+                httpHeaders.build(),
+                EagerBodyReader(httpBody)
+            )
         }
 
     }

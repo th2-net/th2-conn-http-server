@@ -107,7 +107,6 @@ class Main {
             }
 
 
-
             val listener = MessageListener<MessageGroupBatch> { _, message ->
                 message.groupsList.forEach { group ->
                     group.runCatching(responseManager::handleResponse).recoverCatching {

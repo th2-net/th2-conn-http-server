@@ -23,4 +23,5 @@ interface IResponseManager : AutoCloseable {
 
     fun handleResponse(messages: MessageGroup)
 
-    data class ResponseManagerContext(val answer: (RawHttpResponse<Th2Response>) -> Unit)}
+    data class ResponseManagerContext(val answer: (RawHttpResponse<Th2Response>) -> Unit)
+}

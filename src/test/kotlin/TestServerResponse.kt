@@ -40,7 +40,7 @@ private val LOGGER = KotlinLogging.logger { }
 
 class TestServerResponse {
     companion object {
-        val response =  { uuid: String  ->
+        val response = { uuid: String ->
             val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
                 addField("code", 200)
                 addField("reason", "Test reason")
@@ -71,7 +71,6 @@ class TestServerResponse {
         fun finish() {
             this.th2server.stop()
         }
-
     }
 
     @Test
@@ -89,7 +88,7 @@ class TestServerResponse {
 
         val futures = mutableListOf<Future<RawHttpResponse<*>>>()
 
-        val maxTimes = 30
+        val maxTimes = 50
 
         val stopwatch: Stopwatch = Stopwatch.createStarted()
 
@@ -103,7 +102,7 @@ class TestServerResponse {
                 ))
 
                 val sec = stopwatch.elapsed(TimeUnit.SECONDS)
-                while(options.queue.isEmpty()) {
+                while (options.queue.isEmpty()) {
                     TimeUnit.MILLISECONDS.sleep(50L)
                 }
                 val th2response = response(options.queue.remove())
