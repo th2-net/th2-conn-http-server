@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import javax.net.ServerSocketFactory
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLServerSocketFactory
 
 
 class Th2ServerOptions(
@@ -49,16 +50,7 @@ class Th2ServerOptions(
 
     private fun getFactory(): ServerSocketFactory {
         if (!https) return ServerSocketFactory.getDefault()
-
-        // set up key manager to do server authentication
-        val ctx: SSLContext = SSLContext.getInstance("TLSv1.2")
-        //val kmf: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
-        //val ks: KeyStore = KeyStore.getInstance("JKS")
-        //ks.load(FileInputStream("testkeys"), passphrase)
-        //kmf.init(ks, passphrase)
-        ctx.init(null, null, null)
-        return ctx.serverSocketFactory
-
+        return SSLServerSocketFactory.getDefault()
     }
 
     override fun createExecutorService(): ExecutorService {
@@ -78,11 +70,12 @@ class Th2ServerOptions(
         )
     }
 
-    override fun <T : RawHttpResponse<*>> onResponse(request: RawHttpRequest, response: T) {
+    override fun <T : RawHttpResponse<*>> onResponse(request: RawHttpRequest, response: T): T {
         messageRouter.sendAll(
             response.toBatch(connectionID, generateSequenceResponse(), request),
             QueueAttribute.FIRST.toString()
         )
+        return response
     }
 
     private fun sequenceGenerator() = Instant.now().run {

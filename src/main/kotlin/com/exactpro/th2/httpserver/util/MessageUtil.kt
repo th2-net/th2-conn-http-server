@@ -44,7 +44,7 @@ private inline operator fun <T : Builder> T.invoke(block: T.() -> Unit) = apply(
 fun MessageOrBuilder.toPrettyString(): String = JsonFormat.printer().omittingInsignificantWhitespace().includingDefaultValueFields().print(this)
 
 fun Message.requireType(type: String): Message = apply {
-    check(metadata.messageType == type) { "Invalid message type: $type" }
+    check(metadata.messageType == type) { "Invalid message type: ${metadata.messageType} (expected: $type)" }
 }
 
 fun AnyMessage.toParsed(name: String): Message = run {

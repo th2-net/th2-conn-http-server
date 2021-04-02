@@ -11,13 +11,13 @@
  * limitations under the License.
  */
 
+import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.addField
 import com.exactpro.th2.common.message.message
 import com.exactpro.th2.httpserver.server.Th2HttpServer
 import com.exactpro.th2.httpserver.server.responses.Th2Response
-import com.google.common.base.Stopwatch
 import com.google.protobuf.ByteString
 import mu.KotlinLogging
 import org.junit.jupiter.api.AfterAll
@@ -26,14 +26,12 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 import rawhttp.core.RawHttp
-import rawhttp.core.RawHttpResponse
 import rawhttp.core.client.TcpRawHttpClient
 import testimpl.TestClientOptions
 import testimpl.TestServerOptions
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 
 private val LOGGER = KotlinLogging.logger { }
@@ -44,7 +42,6 @@ class TestServerResponse {
             val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
                 addField("code", 200)
                 addField("reason", "Test reason")
-                addField("TestFieldThree", "Three")
                 metadataBuilder.protocol = "http"
                 metadataBuilder.putProperties("uuid", uuid)
             }.build().apply { LOGGER.debug { "Header message is created" } }
@@ -57,8 +54,8 @@ class TestServerResponse {
             Th2Response.Builder().setHead(responseMessage).setBody(bodyMessage).build()
         }
 
-        private val options = TestServerOptions()
-        private val th2server = Th2HttpServer(null, options)
+        private val options = TestServerOptions(false)
+        private val th2server = Th2HttpServer({ _: String, _: String, _: Throwable? -> Event.start()}, options)
 
         @BeforeAll
         @JvmStatic
@@ -75,7 +72,7 @@ class TestServerResponse {
 
     @Test
     fun stressTest() {
-        val client = TcpRawHttpClient(TestClientOptions())
+        val client = TcpRawHttpClient(TestClientOptions(false))
         val request = RawHttp().parseRequest(
             """
             GET / HTTP/1.1
@@ -86,31 +83,23 @@ class TestServerResponse {
 
         val executor: ExecutorService = Executors.newCachedThreadPool()
 
-        val futures = mutableListOf<Future<RawHttpResponse<*>>>()
 
-        val maxTimes = 50
-
-        val stopwatch: Stopwatch = Stopwatch.createStarted()
+        val maxTimes = 30
 
         try {
             for (i in 0 until maxTimes) {
 
-                futures.add(executor.submit(
+                val future = executor.submit(
                     Callable {
                         client.send(request)
                     }
-                ))
+                )
 
-                val sec = stopwatch.elapsed(TimeUnit.SECONDS)
-                while (options.queue.isEmpty()) {
-                    TimeUnit.MILLISECONDS.sleep(50L)
-                }
-                val th2response = response(options.queue.remove())
-                LOGGER.info("that took: $sec sec") // formatted string like "12.3 ms"
+                val th2response = response(options.queue.take())
 
                 th2server.handleResponse(th2response)
 
-                futures[i].runCatching {
+                future.runCatching {
                     val response = get(10, TimeUnit.SECONDS).apply { LOGGER.debug { "Feature returned response" } }
                     assertEquals(response.statusCode, 200)
                 }.onFailure {
@@ -118,11 +107,10 @@ class TestServerResponse {
                 }.onSuccess {
                     LOGGER.debug { "${i + 1} test passed" }
                 }
-
-                stopwatch.reset()
             }
         } catch (e: Exception) {
-            LOGGER.error(e) { "Can't handle stress test with max: $maxTimes" }
+            LOGGER.error(e) { "Can't handle stress test " }
+            fail { "Can't handle stress test with max: $maxTimes" }
         } finally {
             client.close()
         }

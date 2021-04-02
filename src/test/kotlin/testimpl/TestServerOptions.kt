@@ -13,21 +13,33 @@
 
 package testimpl
 
-import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.httpserver.server.options.ServerOptions
-import com.exactpro.th2.httpserver.util.toBatch
+import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
 import java.net.ServerSocket
-import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
+import java.io.FileInputStream
 
-class TestServerOptions : ServerOptions {
-    var queue = ConcurrentLinkedQueue<String>()
+import java.security.KeyStore
+import javax.net.ServerSocketFactory
+import javax.net.ssl.*
+
+
+private val logger = KotlinLogging.logger {}
+
+class TestServerOptions(private val https: Boolean = false) : ServerOptions {
+    var queue = ArrayBlockingQueue<String>(100)
+
+
 
     override fun createSocket(): ServerSocket {
-        return ServerSocket(GlobalVariables.PORT)
+        if (https) {
+            return SSLServerSocketFactory.getDefault().createServerSocket(GlobalVariables.PORT) as SSLServerSocket
+        }
+        return ServerSocketFactory.getDefault().createServerSocket(GlobalVariables.PORT).apply { logger.info("Created server socket on port:${GlobalVariables.PORT}") }
     }
 
     override fun createExecutorService(): ExecutorService {

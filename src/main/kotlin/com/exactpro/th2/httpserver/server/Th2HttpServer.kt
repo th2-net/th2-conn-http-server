@@ -17,41 +17,39 @@ import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
-import rawhttp.core.*
+import rawhttp.core.HttpVersion
+import rawhttp.core.RawHttp
+import rawhttp.core.RawHttpRequest
+import rawhttp.core.RawHttpResponse
 import rawhttp.core.body.BodyReader
 import rawhttp.core.errors.InvalidHttpRequest
 import java.io.IOException
 import java.lang.Exception
-import java.lang.NullPointerException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
-import java.util.*
+import java.util.UUID
+import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
-import kotlin.reflect.KFunction2
 import java.util.concurrent.TimeUnit
-import java.util.logging.Logger
+import kotlin.NoSuchElementException
 
 
 private val LOGGER = KotlinLogging.logger { }
 
 internal class Th2HttpServer(
-    private val eventStore: ((String, String, Throwable?) -> Event)?,
+    private val eventStore: ((String, String, Throwable?) -> Event),
     private val options: ServerOptions
 ) : HttpServer {
 
-    init {
-        if (eventStore == null) {
-            LOGGER.warn { "Event router is null, messages will not be send to event store!" }
-        }
-    }
+    @Volatile
+    private var listen: Boolean = true
 
     private var socket: ServerSocket = options.createSocket()
     private val executorService: ExecutorService = options.createExecutorService()
     private val http: RawHttp = options.getRawHttp()
-    private var listen: Boolean = true
     private val dialogs = ConcurrentHashMap<String, Dialog>()
 
 
@@ -63,10 +61,10 @@ internal class Th2HttpServer(
                     // thread waiting to accept socket before continue
                     executorService.submit { handle(client) }
                 } catch (e: SocketException) {
-                    serverError("Broken or closed socket!", "Failed to handle socket connection", e)
+                    serverError("Broken or closed socket!", e)
                     recreateSocket()
                 } catch (e: IOException) {
-                    serverError("Failed to accept client socket", "Failed to handle socket connection", e)
+                    serverError("Failed to accept client socket", e)
                     if (socket.isClosed) recreateSocket()
                 }
             }
@@ -108,7 +106,7 @@ internal class Th2HttpServer(
                 if (e !is SocketException && e is InvalidHttpRequest && e.lineNumber == 0) {
                     LOGGER.info(e) { "Client closed connection, socket isn't open" }
                 } else {
-                    serverError("Failed to handle request, broken socket", "Failed to handle request", e)
+                    serverError("Failed to handle request, broken socket", e)
                 }
                 serverWillCloseConnection = true // cannot keep listening anymore
             } finally {
@@ -122,28 +120,22 @@ internal class Th2HttpServer(
             val uuid: String = response.libResponse.get().uuid
             LOGGER.debug { "Message processing for $uuid has been started " }
             dialogs.remove(uuid)?.let {
-                options.prepareResponse(it.request, response).apply {
-                    writeTo(it.socket.getOutputStream())
-                    options.onResponse(it.request, response)
-                }
+                options.onResponse(it.request, response).writeTo(it.socket.getOutputStream())
                 LOGGER.debug("Response: \n$response\nwas send to client")
             } ?: run {
                 serverError(
                     "Failed to handle response, no matching client found. Response: /n$response",
-                    "Failed to handle response, no matching client found",
                     null
                 )
             }
         } catch (e: SocketException) {
             serverError(
                 "Failed to handle response, socket is broken. Response: /n$response",
-                "Failed to handle response, socket is broken",
                 e
             )
         } catch (e: NoSuchElementException) {
             serverError(
                 "Response is broken, please check api realization. Need to provide Th2Response object inside response",
-                "Failed to handle response",
                 e
             )
         } finally {
@@ -152,7 +144,7 @@ internal class Th2HttpServer(
     }
 
     override fun stop() {
-        LOGGER.debug("\nThe Server is shutting down\n")
+        LOGGER.debug("The Server is shutting down")
         listen = false
         try {
             socket.close()
@@ -190,12 +182,12 @@ internal class Th2HttpServer(
             .orElse(false)
     }
 
-    private fun serverError(log: String, event: String, throwable: Throwable?) {
+    private fun serverError(msg: String, throwable: Throwable?) {
         if (!listen) {
-            LOGGER.warn(throwable) { "Closed server: $log" }
+            LOGGER.warn(throwable) { "Closed server: $msg" }
         } else {
-            eventStore?.invoke(event, "Error", throwable)
-            LOGGER.error(throwable) { log }
+            eventStore(msg, "Error", throwable)
+            LOGGER.error(throwable) { msg }
         }
     }
 
