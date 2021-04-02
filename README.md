@@ -9,6 +9,7 @@ Main configuration is done via setting following properties in a custom configur
 + **port** - port for HTTP requests (`80` by default)
 + **sessionAlias** - session alias for incoming/outgoing TH2 messages (e.g. `rest_api`)
 + **threads** - number of socket-processing threads
++ **terminationTime** - the specified time to wait for the executors to close
 
 
 ### Configuration example
@@ -18,6 +19,7 @@ https: false
 port: 334
 sessionAlias: api_session
 threads: 24
+terminationTime: 30
 ```
 
 ### MQ pins

@@ -124,7 +124,7 @@ class Main {
                 throw IllegalStateException("Failed to subscribe to input queue", it)
             }
 
-            val server = Th2HttpServer(eventStore, options).apply {
+            val server = Th2HttpServer(eventStore, options, settings.terminationTime).apply {
                 registerResource("server", ::stop)
             }
 
@@ -144,7 +144,8 @@ class Main {
             val port: Int = 80,
             val sessionAlias: String,
             val threads: Int = 24,
-            val https: Boolean = false
+            val https: Boolean = false,
+            val terminationTime: Long = 30
         )
 
         private inline fun <reified T> load(defaultImpl: Class<out T>): T {

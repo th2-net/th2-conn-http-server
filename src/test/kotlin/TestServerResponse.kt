@@ -55,7 +55,7 @@ class TestServerResponse {
         }
 
         private val options = TestServerOptions(false)
-        private val th2server = Th2HttpServer({ _: String, _: String, _: Throwable? -> Event.start()}, options)
+        private val th2server = Th2HttpServer({ _: String, _: String, _: Throwable? -> Event.start()}, options, 1)
 
         @BeforeAll
         @JvmStatic

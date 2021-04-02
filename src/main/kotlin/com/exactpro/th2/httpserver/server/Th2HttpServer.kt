@@ -41,7 +41,8 @@ private val LOGGER = KotlinLogging.logger { }
 
 internal class Th2HttpServer(
     private val eventStore: ((String, String, Throwable?) -> Event),
-    private val options: ServerOptions
+    private val options: ServerOptions,
+    private val terminationTime: Long
 ) : HttpServer {
 
     @Volatile
@@ -49,6 +50,7 @@ internal class Th2HttpServer(
 
     private var socket: ServerSocket = options.createSocket()
     private val executorService: ExecutorService = options.createExecutorService()
+    private val additionalExecutors: ExecutorService = options.createExecutorService()
     private val http: RawHttp = options.getRawHttp()
     private val dialogs = ConcurrentHashMap<String, Dialog>()
 
@@ -87,9 +89,9 @@ internal class Th2HttpServer(
                 )
 
                 val requestEagerly = request.eagerly().apply { LOGGER.debug("Received request: \n$this\n") }
-                val uuid = UUID.randomUUID().toString()
-                options.onRequest(requestEagerly, uuid)
 
+                val uuid = UUID.randomUUID().toString()
+                additionalExecutors.submit { options.onRequest(requestEagerly, uuid) }
                 val connectionOption = request.headers.getFirst("Connection")
                 serverWillCloseConnection =
                     connectionOption.map { string: String? -> "close".equals(string, ignoreCase = true) }.orElse(false)
@@ -152,9 +154,14 @@ internal class Th2HttpServer(
             LOGGER.warn(e) { "Failed to close socket" }
         } finally {
             executorService.shutdown()
-            if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
-                LOGGER.warn { "Executor didn't turn off on specified time" }
+            additionalExecutors.shutdown()
+            if (!executorService.awaitTermination(terminationTime, TimeUnit.SECONDS)) {
+                LOGGER.warn { "Socket Executors didn't turn off on specified time" }
                 executorService.shutdownNow()
+            }
+            if (!additionalExecutors.isTerminated) {
+                LOGGER.warn { "Additional Executors didn't turn off on specified time" }
+                additionalExecutors.shutdown()
             }
         }
     }
