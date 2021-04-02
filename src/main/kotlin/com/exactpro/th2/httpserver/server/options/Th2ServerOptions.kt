@@ -22,11 +22,13 @@ import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.net.ServerSocket
+import java.security.KeyStore
 import java.time.Instant
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import javax.net.ServerSocketFactory
+import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLServerSocketFactory
 
@@ -35,6 +37,7 @@ class Th2ServerOptions(
     private val https: Boolean,
     private val port: Int,
     private val threads: Int,
+    private val keystorePass: String,
     private val connectionID: ConnectionID,
     private val messageRouter: MessageRouter<MessageGroupBatch>
 ) : ServerOptions {
@@ -49,8 +52,17 @@ class Th2ServerOptions(
     }
 
     private fun getFactory(): ServerSocketFactory {
-        if (!https) return ServerSocketFactory.getDefault()
-        return SSLServerSocketFactory.getDefault()
+        if (https) {
+            val passphrase = keystorePass.toCharArray()
+            val ctx: SSLContext = SSLContext.getInstance("TLSv1.3")
+            val kmf: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+            val ks: KeyStore = KeyStore.getInstance("JKS")
+            ks.load(this.javaClass.classLoader.getResourceAsStream("defaultkeystore"), passphrase)
+            kmf.init(ks, passphrase)
+            ctx.init(kmf.keyManagers, null, null)
+            return ctx.serverSocketFactory
+        }
+        return ServerSocketFactory.getDefault()
     }
 
     override fun createExecutorService(): ExecutorService {

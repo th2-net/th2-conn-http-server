@@ -21,11 +21,13 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
-import java.io.FileInputStream
 
 import java.security.KeyStore
 import javax.net.ServerSocketFactory
 import javax.net.ssl.*
+
+
+
 
 
 private val logger = KotlinLogging.logger {}
@@ -33,13 +35,22 @@ private val logger = KotlinLogging.logger {}
 class TestServerOptions(private val https: Boolean = false) : ServerOptions {
     var queue = ArrayBlockingQueue<String>(100)
 
-
-
     override fun createSocket(): ServerSocket {
+        return getServerSocketFactory().createServerSocket(GlobalVariables.PORT).apply { logger.info("Created server socket on port:${GlobalVariables.PORT}") }
+    }
+
+    private fun getServerSocketFactory() : ServerSocketFactory {
         if (https) {
-            return SSLServerSocketFactory.getDefault().createServerSocket(GlobalVariables.PORT) as SSLServerSocket
+            val passphrase = "servertest".toCharArray()
+            val ctx: SSLContext = SSLContext.getInstance("TLSv1.3")
+            val kmf: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+            val ks: KeyStore = KeyStore.getInstance("JKS")
+            ks.load(this.javaClass.classLoader.getResourceAsStream("servertest"), passphrase)
+            kmf.init(ks, passphrase)
+            ctx.init(kmf.keyManagers, null, null)
+            return ctx.serverSocketFactory
         }
-        return ServerSocketFactory.getDefault().createServerSocket(GlobalVariables.PORT).apply { logger.info("Created server socket on port:${GlobalVariables.PORT}") }
+        return ServerSocketFactory.getDefault()
     }
 
     override fun createExecutorService(): ExecutorService {

@@ -1,22 +1,5 @@
-/*
- * Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * http://www.apache.org/licenses/LICENSE-2.0
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import mu.KotlinLogging
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.fail
+import org.junit.jupiter.api.*
 import rawhttp.core.RawHttp
 import rawhttp.core.client.TcpRawHttpClient
 import testimpl.TestClientOptions
@@ -27,9 +10,9 @@ import java.util.concurrent.TimeUnit
 
 private val LOGGER = KotlinLogging.logger { }
 
-class TestServerResponse {
-    companion object {
-        private val server = TestServerManager(false)
+class TestHTTPSResponse {
+    companion object  {
+        private val server = TestServerManager(true)
 
         @BeforeAll
         @JvmStatic
@@ -46,7 +29,7 @@ class TestServerResponse {
 
     @Test
     fun stressTest() {
-        val client = TcpRawHttpClient(TestClientOptions(false))
+        val client = TcpRawHttpClient(TestClientOptions(true))
         val request = RawHttp().parseRequest(
             """
             GET / HTTP/1.1
@@ -68,12 +51,12 @@ class TestServerResponse {
                         client.send(request)
                     }
                 )
-
                 server.handleResponse()
 
                 future.runCatching {
                     val response = get(10, TimeUnit.SECONDS).apply { LOGGER.debug { "Feature returned response" } }
-                    assertEquals(response.statusCode, 200)
+                    Assertions.assertEquals(response.statusCode, 200)
+                    LOGGER.debug { "Response status code: ${response.statusCode}" }
                 }.onFailure {
                     fail { "Can't get response ${i + 1}: \n$it" }
                 }.onSuccess {
@@ -87,5 +70,4 @@ class TestServerResponse {
             client.close()
         }
     }
-
 }

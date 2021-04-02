@@ -96,7 +96,7 @@ class Main {
                 type("Microservice")
             }).id
 
-            val options = Th2ServerOptions(settings.https, settings.port, settings.threads, connectionId, messageRouter)
+            val options = Th2ServerOptions(settings.https, settings.port, settings.threads, settings.storepass, connectionId, messageRouter)
             val eventStore = { name: String, type: String, error: Throwable? ->
                 eventRouter.storeEvent(
                     rootEventId,
@@ -145,7 +145,8 @@ class Main {
             val sessionAlias: String,
             val threads: Int = 24,
             val https: Boolean = false,
-            val terminationTime: Long = 30
+            val terminationTime: Long = 30,
+            val storepass: String
         )
 
         private inline fun <reified T> load(defaultImpl: Class<out T>): T {
