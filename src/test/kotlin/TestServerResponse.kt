@@ -58,7 +58,7 @@ class TestServerResponse {
         val executor: ExecutorService = Executors.newCachedThreadPool()
 
 
-        val maxTimes = 30
+        val maxTimes = 10
 
         try {
             for (i in 0 until maxTimes) {
