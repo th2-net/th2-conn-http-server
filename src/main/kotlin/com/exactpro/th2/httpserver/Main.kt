@@ -25,7 +25,6 @@ import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.api.IResponseManager.ResponseManagerContext
 import com.exactpro.th2.httpserver.api.impl.BasicResponseManager
 import com.exactpro.th2.httpserver.server.Th2HttpServer
-import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.options.Th2ServerOptions
 import com.exactpro.th2.httpserver.util.toPrettyString
 import com.fasterxml.jackson.databind.json.JsonMapper
@@ -96,7 +95,19 @@ class Main {
                 type("Microservice")
             }).id
 
-            val options = Th2ServerOptions(settings.https, settings.port, settings.threads, settings.storepass, connectionId, messageRouter)
+            val options = Th2ServerOptions(
+                settings.https,
+                settings.port,
+                settings.threads,
+                settings.storePass,
+                settings.sslProtocol,
+                settings.keystoreType,
+                settings.keyManagerAlgorithm,
+                settings.keystorePath,
+                connectionId,
+                messageRouter
+            )
+
             val eventStore = { name: String, type: String, error: Throwable? ->
                 eventRouter.storeEvent(
                     rootEventId,
@@ -146,7 +157,11 @@ class Main {
             val threads: Int = 24,
             val https: Boolean = false,
             val terminationTime: Long = 30,
-            val storepass: String
+            val sslProtocol: String = "TLSv1.3",
+            val storePass: String,
+            val keystorePath: String = "",
+            val keystoreType: String = "JKS",
+            val keyManagerAlgorithm: String = "SunX509"
         )
 
         private inline fun <reified T> load(defaultImpl: Class<out T>): T {

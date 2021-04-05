@@ -38,8 +38,6 @@ open class TestServerManager(private val https: Boolean = false) {
             val pass = "servertest"
             System.setProperty("javax.net.ssl.trustStore", truststore)
             System.setProperty("javax.net.ssl.trustStorePassword", pass)
-            System.setProperty("javax.net.ssl.keyStore", truststore)
-            System.setProperty("javax.net.ssl.keyStorePassword", pass)
             System.setProperty("javax.net.debug", "all")
         }
 
