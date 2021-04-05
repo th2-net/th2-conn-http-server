@@ -72,7 +72,7 @@ class TestServerResponse {
                 server.handleResponse()
 
                 future.runCatching {
-                    val response = get(10, TimeUnit.SECONDS).apply { LOGGER.debug { "Feature returned response" } }
+                    val response = get(15, TimeUnit.SECONDS).apply { LOGGER.debug { "Feature returned response" } }
                     assertEquals(response.statusCode, 200)
                 }.onFailure {
                     fail { "Can't get response ${i + 1}: \n$it" }

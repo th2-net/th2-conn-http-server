@@ -54,7 +54,7 @@ class TestHTTPSResponse {
                 server.handleResponse()
 
                 future.runCatching {
-                    val response = get(10, TimeUnit.SECONDS).apply { LOGGER.debug { "Feature returned response" } }
+                    val response = get(15, TimeUnit.SECONDS).apply { LOGGER.debug { "Feature returned response" } }
                     Assertions.assertEquals(response.statusCode, 200)
                     LOGGER.debug { "Response status code: ${response.statusCode}" }
                 }.onFailure {
