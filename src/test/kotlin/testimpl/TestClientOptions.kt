@@ -57,7 +57,7 @@ class TestClientOptions(private val https: Boolean = false) : TcpRawHttpClient.D
         }
 
         socketExpirationTimes[socket] = currentTime + 20000
-        socket.apply { soTimeout = 5000 }
+        socket.apply { soTimeout = 15000 }
     }
 
     override fun removeSocket(socket: Socket) {

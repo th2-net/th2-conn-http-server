@@ -9,8 +9,8 @@ Main configuration is done via setting following properties in a custom configur
 + **port** - port for HTTP requests (`80` by default)
 + **sessionAlias** - session alias for incoming/outgoing TH2 messages (e.g. `rest_api`)
 + **threads** - number of socket-processing threads
-+ **terminationTime** - the specified time to wait for the executors to close
-
++ **terminationTime** - the specified time to wait for the executors to close (`30` by default)
++ **storepass** - pass to open keystore for https connection
 
 ### Configuration example
 
@@ -20,6 +20,7 @@ port: 334
 sessionAlias: api_session
 threads: 24
 terminationTime: 30
+storepass: some_https_store_pass
 ```
 
 ### MQ pins
@@ -104,3 +105,11 @@ spec:
         - first
         - raw 
 ```
+
+
+##Instruction to regenerate test keys
+1) `keytool -keystore servertest -genkey -alias servertest -keyalg RSA` - to create servertest keystore
+   
+2) `keytool -export -alias servertest -storepass servertest -file servertest.cer -keystore servertest` - to export certificate file outside keystore
+
+3) `keytool -import -file servertest.cer -alias servertest -keystore TestTrustStore` - to import certificate inside of trust store
