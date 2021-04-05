@@ -10,10 +10,15 @@ Main configuration is done via setting following properties in a custom configur
 + **sessionAlias** - session alias for incoming/outgoing TH2 messages (e.g. `rest_api`)
 + **threads** - number of socket-processing threads
 + **terminationTime** - the specified time to wait for the executors to close (`30` by default)
-+ **storepass** - pass to open keystore for https connection
++ **storePass** - pass to open keystore for https connection
++ **sslProtocol** - protocol for https connection (`TLSv1.3` by default)
++ **keystorePath** - path to new keystore (by default its using one from resources)
++ **keystoreType** - type of keystore (`JKS` by default)
++ **keyManagerAlgorithm** - type of keystore algorithm (`SunX509` by default)
+
+
 
 ### Configuration example
-
 ```yaml
 https: false
 port: 334
