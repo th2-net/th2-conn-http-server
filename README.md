@@ -112,7 +112,7 @@ spec:
 ```
 
 
-##Instruction to regenerate test keys
+## Instruction to regenerate test keys
 1) `keytool -keystore servertest -genkey -alias servertest -keyalg RSA` - to create servertest keystore
    
 2) `keytool -export -alias servertest -storepass servertest -file servertest.cer -keystore servertest` - to export certificate file outside keystore
