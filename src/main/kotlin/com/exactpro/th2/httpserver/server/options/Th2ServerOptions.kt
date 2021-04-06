@@ -100,7 +100,7 @@ class Th2ServerOptions(
         )
     }
 
-    override fun <T : RawHttpResponse<*>> onResponse(request: RawHttpRequest, response: T): T {
+    override fun <T : RawHttpResponse<*>> prepareResponse(request: RawHttpRequest, response: T): T {
         messageRouter.sendAll(
             response.toBatch(connectionID, generateSequenceResponse(), request),
             QueueAttribute.FIRST.toString()

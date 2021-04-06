@@ -1,5 +1,9 @@
 import mu.KotlinLogging
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Assertions.fail
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
 import rawhttp.core.RawHttp
 import rawhttp.core.client.TcpRawHttpClient
 import testimpl.TestClientOptions
@@ -11,7 +15,7 @@ import java.util.concurrent.TimeUnit
 private val LOGGER = KotlinLogging.logger { }
 
 class TestHTTPSResponse {
-    companion object  {
+    companion object {
         private val server = TestServerManager(true)
 
         @BeforeAll
@@ -65,7 +69,7 @@ class TestHTTPSResponse {
             }
         } catch (e: Exception) {
             LOGGER.error(e) { "Can't handle stress test " }
-            fail { "Can't handle stress test with max: $maxTimes" }
+            fail("Can't handle stress test with max: $maxTimes", e)
         } finally {
             client.close()
         }

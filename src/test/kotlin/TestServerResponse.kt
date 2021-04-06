@@ -82,7 +82,7 @@ class TestServerResponse {
             }
         } catch (e: Exception) {
             LOGGER.error(e) { "Can't handle stress test " }
-            fail { "Can't handle stress test with max: $maxTimes" }
+            fail("Can't handle stress test with max: $maxTimes", e)
         } finally {
             client.close()
         }

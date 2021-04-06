@@ -122,7 +122,7 @@ internal class Th2HttpServer(
             val uuid: String = response.libResponse.get().uuid
             LOGGER.debug { "Message processing for $uuid has been started " }
             dialogs.remove(uuid)?.let {
-                options.onResponse(it.request, response).writeTo(it.socket.getOutputStream())
+                options.prepareResponse(it.request, response).writeTo(it.socket.getOutputStream())
                 LOGGER.debug("Response: \n$response\nwas send to client")
             } ?: run {
                 serverError(
@@ -146,7 +146,7 @@ internal class Th2HttpServer(
     }
 
     override fun stop() {
-        LOGGER.debug("The Server is shutting down")
+        LOGGER.debug("Server is shutting down")
         listen = false
         try {
             socket.close()

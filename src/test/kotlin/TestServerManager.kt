@@ -14,7 +14,7 @@ private val LOGGER = KotlinLogging.logger { }
 
 open class TestServerManager(private val https: Boolean = false) {
     private val options = TestServerOptions(https)
-    private val th2server = Th2HttpServer({ _: String, _: String, _: Throwable? -> Event.start()}, options, 1)
+    private val th2server = Th2HttpServer({ _, _, _ -> Event.start() }, options, 1)
 
     val response = { uuid: String ->
         val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
@@ -34,7 +34,8 @@ open class TestServerManager(private val https: Boolean = false) {
 
     fun start() {
         if (https) {
-            val truststore: String = File(this.javaClass.getClassLoader().getResource("TestTrustStore").getFile()).absolutePath
+            val truststore: String =
+                File(this.javaClass.getClassLoader().getResource("TestTrustStore").getFile()).absolutePath
             val pass = "servertest"
             System.setProperty("javax.net.ssl.trustStore", truststore)
             System.setProperty("javax.net.ssl.trustStorePassword", pass)

@@ -24,10 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import java.security.KeyStore
 import javax.net.ServerSocketFactory
-import javax.net.ssl.*
-
-
-
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
 
 
 private val logger = KotlinLogging.logger {}
@@ -36,10 +34,11 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions {
     var queue = ArrayBlockingQueue<String>(100)
 
     override fun createSocket(): ServerSocket {
-        return getServerSocketFactory().createServerSocket(GlobalVariables.PORT).apply { logger.info("Created server socket on port:${GlobalVariables.PORT}") }
+        return getServerSocketFactory().createServerSocket(GlobalVariables.PORT)
+            .apply { logger.info("Created server socket on port:${GlobalVariables.PORT}") }
     }
 
-    private fun getServerSocketFactory() : ServerSocketFactory {
+    private fun getServerSocketFactory(): ServerSocketFactory {
         if (https) {
             val passphrase = "servertest".toCharArray()
             val ctx: SSLContext = SSLContext.getInstance("TLSv1.3")
