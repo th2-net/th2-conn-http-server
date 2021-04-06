@@ -106,7 +106,7 @@ internal class Th2HttpServer(
 
             } catch (e: Exception) {
                 if (e !is SocketException && e is InvalidHttpRequest && e.lineNumber == 0) {
-                    LOGGER.info(e) { "Client closed connection, socket isn't open" }
+                    LOGGER.debug { "Client closed connection" }
                 } else {
                     serverError("Failed to handle request, broken socket", e)
                 }

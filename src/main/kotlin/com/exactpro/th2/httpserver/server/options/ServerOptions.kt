@@ -20,7 +20,9 @@ import rawhttp.core.RawHttpResponse
 import java.io.IOException
 import java.net.ServerSocket
 import java.util.concurrent.ExecutorService
+import javax.annotation.concurrent.ThreadSafe
 
+@ThreadSafe
 interface ServerOptions {
 
     /**

@@ -99,7 +99,7 @@ class Main {
                 settings.https,
                 settings.port,
                 settings.threads,
-                settings.storePass,
+                settings.keystorePass,
                 settings.sslProtocol,
                 settings.keystoreType,
                 settings.keyManagerAlgorithm,
@@ -158,7 +158,7 @@ class Main {
             val https: Boolean = false,
             val terminationTime: Long = 30,
             val sslProtocol: String = "TLSv1.3",
-            val storePass: String,
+            val keystorePass: String,
             val keystorePath: String = "",
             val keystoreType: String = "JKS",
             val keyManagerAlgorithm: String = "SunX509"

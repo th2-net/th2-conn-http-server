@@ -10,7 +10,7 @@ Main configuration is done via setting following properties in a custom configur
 + **sessionAlias** - session alias for incoming/outgoing TH2 messages (e.g. `rest_api`)
 + **threads** - number of socket-processing threads
 + **terminationTime** - the specified time to wait for the executors to close (`30` by default)
-+ **storePass** - pass to open keystore for https connection
++ **keystorePass** - pass to open keystore for https connection
 + **sslProtocol** - protocol for https connection (`TLSv1.3` by default)
 + **keystorePath** - path to new keystore (by default its using one from resources)
 + **keystoreType** - type of keystore (`JKS` by default)
@@ -25,7 +25,7 @@ port: 334
 sessionAlias: api_session
 threads: 24
 terminationTime: 30
-storepass: some_https_store_pass
+keystorePass: some_https_store_pass
 ```
 
 ### MQ pins

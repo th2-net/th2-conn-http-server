@@ -25,7 +25,9 @@ import java.io.File
 import java.net.ServerSocket
 import java.security.KeyStore
 import java.time.Instant
-import java.util.concurrent.*
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import javax.net.ServerSocketFactory
@@ -46,11 +48,7 @@ class Th2ServerOptions(
     private val messageRouter: MessageRouter<MessageGroupBatch>
 ) : ServerOptions {
 
-    private val socketFactory: ServerSocketFactory
-
-    init {
-        socketFactory = createFactory()
-    }
+    private val socketFactory: ServerSocketFactory = createFactory()
 
     private val logger = KotlinLogging.logger {}
 
@@ -69,7 +67,7 @@ class Th2ServerOptions(
             val kmf: KeyManagerFactory = KeyManagerFactory.getInstance(keyManagerAlgorithm)
             val ks: KeyStore = KeyStore.getInstance(keystoreType)
             if (keystorePath.isEmpty()) {
-                ks.load(this.javaClass.classLoader.getResourceAsStream("defaultkeystore"), passphrase)
+                this::class.java.classLoader.getResourceAsStream("defaultkeystore").use { ks.load(it, passphrase) }
             } else {
                 File(keystorePath).inputStream().use {
                     ks.load(it, passphrase)
