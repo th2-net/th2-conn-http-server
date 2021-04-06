@@ -34,8 +34,7 @@ open class TestServerManager(private val https: Boolean = false) {
 
     fun start() {
         if (https) {
-            val truststore: String =
-                File(this.javaClass.getClassLoader().getResource("TestTrustStore").getFile()).absolutePath
+            val truststore: String = File(this::class.java.classLoader.getResource("TestTrustStore").getFile()).absolutePath
             val pass = "servertest"
             System.setProperty("javax.net.ssl.trustStore", truststore)
             System.setProperty("javax.net.ssl.trustStorePassword", pass)

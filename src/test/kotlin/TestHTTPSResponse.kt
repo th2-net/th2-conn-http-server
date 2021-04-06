@@ -5,12 +5,10 @@ import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import rawhttp.core.RawHttp
+import rawhttp.core.RawHttpResponse
 import rawhttp.core.client.TcpRawHttpClient
 import testimpl.TestClientOptions
-import java.util.concurrent.Callable
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.*
 
 private val LOGGER = KotlinLogging.logger { }
 
@@ -33,7 +31,6 @@ class TestHTTPSResponse {
 
     @Test
     fun stressTest() {
-        val client = TcpRawHttpClient(TestClientOptions(true))
         val request = RawHttp().parseRequest(
             """
             GET / HTTP/1.1
@@ -44,34 +41,40 @@ class TestHTTPSResponse {
 
         val executor: ExecutorService = Executors.newCachedThreadPool()
 
+        val maxInstances = GlobalVariables.THREADS
 
-        val maxTimes = 10
-
+        val clients = mutableListOf<TcpRawHttpClient>()
+        val futures = mutableListOf<Future<RawHttpResponse<Void>>>()
         try {
-            for (i in 0 until maxTimes) {
-
-                val future = executor.submit(
+            for (i in 0 until maxInstances) {
+                futures.add(executor.submit(
                     Callable {
-                        client.send(request)
+                        TcpRawHttpClient(TestClientOptions(true)).apply { clients.add(this) }.send(request)
                     }
-                )
-                server.handleResponse()
+                ))
+                LOGGER.debug { "Futures created: ${i + 1}" }
+            }
 
-                future.runCatching {
-                    val response = get(15, TimeUnit.SECONDS).apply { LOGGER.debug { "Feature returned response" } }
+            repeat(maxInstances) {
+                server.handleResponse()
+                LOGGER.debug { "Server handled response number: ${it+1}" }
+            }
+
+            for (i in 0 until maxInstances) {
+                futures[i].runCatching {
+                    val response = get(15, TimeUnit.SECONDS).apply { LOGGER.debug { "[${i+1}] Feature returned response" } }
                     Assertions.assertEquals(response.statusCode, 200)
-                    LOGGER.debug { "Response status code: ${response.statusCode}" }
                 }.onFailure {
-                    fail { "Can't get response ${i + 1}: \n$it" }
+                    org.junit.jupiter.api.fail { "Can't get response ${i + 1}: \n$it" }
                 }.onSuccess {
                     LOGGER.debug { "${i + 1} test passed" }
                 }
             }
         } catch (e: Exception) {
             LOGGER.error(e) { "Can't handle stress test " }
-            fail("Can't handle stress test with max: $maxTimes", e)
+            org.junit.jupiter.api.fail("Can't handle stress test with max: $maxInstances", e)
         } finally {
-            client.close()
+            clients.forEach { it.close() }
         }
     }
 }
