@@ -24,16 +24,15 @@ import rawhttp.core.RawHttpResponse
 import rawhttp.core.body.BodyReader
 import rawhttp.core.errors.InvalidHttpRequest
 import java.io.IOException
-import java.lang.Exception
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
 import java.util.UUID
 import java.util.Optional
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
+import kotlin.Exception
 import kotlin.NoSuchElementException
 
 
@@ -42,17 +41,19 @@ private val LOGGER = KotlinLogging.logger { }
 internal class Th2HttpServer(
     private val eventStore: ((String, String, Throwable?) -> Event),
     private val options: ServerOptions,
-    private val terminationTime: Long
+    private val terminationTime: Long,
+    socketDelayCheck: Long
 ) : HttpServer {
 
     @Volatile
     private var listen: Boolean = true
+    private val dialogManager: DialogueManager = DialogueManager(socketDelayCheck)
 
     private var socket: ServerSocket = options.createSocket()
     private val executorService: ExecutorService = options.createExecutorService()
     private val additionalExecutors: ExecutorService = options.createExecutorService()
     private val http: RawHttp = options.getRawHttp()
-    private val dialogs = ConcurrentHashMap<String, Dialog>()
+
 
 
     override fun start() {
@@ -60,6 +61,7 @@ internal class Th2HttpServer(
             while (listen) {
                 try {
                     val client = socket.accept()
+
                     // thread waiting to accept socket before continue
                     executorService.submit { handle(client) }
                 } catch (e: SocketException) {
@@ -71,6 +73,7 @@ internal class Th2HttpServer(
                 }
             }
         }, "th2-conn-http-server").start()
+        dialogManager.startCleaner()
     }
 
     private fun recreateSocket() {
@@ -100,13 +103,13 @@ internal class Th2HttpServer(
 
 
                 if (!serverWillCloseConnection) {
-                    dialogs[uuid] = Dialog(requestEagerly, client)
+                    dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client)
                     LOGGER.debug("Stored dialog: $uuid")
                 }
 
             } catch (e: Exception) {
                 if (e !is SocketException && e is InvalidHttpRequest && e.lineNumber == 0) {
-                    LOGGER.info(e) { "Client closed connection, socket isn't open" }
+                    LOGGER.debug { "Client closed connection" }
                 } else {
                     serverError("Failed to handle request, broken socket", e)
                 }
@@ -121,8 +124,8 @@ internal class Th2HttpServer(
         try {
             val uuid: String = response.libResponse.get().uuid
             LOGGER.debug { "Message processing for $uuid has been started " }
-            dialogs.remove(uuid)?.let {
-                options.onResponse(it.request, response).writeTo(it.socket.getOutputStream())
+            dialogManager.dialogues.remove(uuid)?.let {
+                options.prepareResponse(it.request, response).writeTo(it.socket.getOutputStream())
                 LOGGER.debug("Response: \n$response\nwas send to client")
             } ?: run {
                 serverError(
@@ -146,12 +149,13 @@ internal class Th2HttpServer(
     }
 
     override fun stop() {
-        LOGGER.debug("The Server is shutting down")
+        LOGGER.debug("Server is shutting down")
         listen = false
+        dialogManager.close()
         try {
             socket.close()
         } catch (e: IOException) {
-            LOGGER.warn(e) { "Failed to close socket" }
+            LOGGER.warn(e) { "Failed to close Server socket" }
         } finally {
             executorService.shutdown()
             additionalExecutors.shutdown()
@@ -197,7 +201,5 @@ internal class Th2HttpServer(
             LOGGER.error(throwable) { msg }
         }
     }
-
-    data class Dialog(val request: RawHttpRequest, val socket: Socket)
 
 }

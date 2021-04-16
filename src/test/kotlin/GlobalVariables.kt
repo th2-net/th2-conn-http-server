@@ -14,5 +14,6 @@
 class GlobalVariables {
     companion object {
         const val PORT = 25565
+        const val THREADS = 10
     }
 }

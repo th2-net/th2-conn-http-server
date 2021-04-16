@@ -13,11 +13,16 @@
 
 package com.exactpro.th2.httpserver.server.options
 
-import rawhttp.core.*
+import rawhttp.core.RawHttp
+import rawhttp.core.RawHttpOptions
+import rawhttp.core.RawHttpRequest
+import rawhttp.core.RawHttpResponse
 import java.io.IOException
 import java.net.ServerSocket
 import java.util.concurrent.ExecutorService
+import javax.annotation.concurrent.ThreadSafe
 
+@ThreadSafe
 interface ServerOptions {
 
     /**
@@ -43,7 +48,16 @@ interface ServerOptions {
      */
     fun createExecutorService(): ExecutorService
 
+    /**
+     * Must be guaranteed to be thread-safe since it will be called from different threads
+     *
+     */
     fun onRequest(request: RawHttpRequest, id: String) = Unit
 
-    fun <T : RawHttpResponse<*>> onResponse(request: RawHttpRequest, response: T) = response
+    /**
+     * Must be guaranteed to be thread-safe since it will be called from different threads
+     *
+     * @return response with specific changes or without them
+     */
+    fun <T : RawHttpResponse<*>> prepareResponse(request: RawHttpRequest, response: T) = response
 }

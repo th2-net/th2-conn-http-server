@@ -21,11 +21,11 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
-import java.io.FileInputStream
 
 import java.security.KeyStore
 import javax.net.ServerSocketFactory
-import javax.net.ssl.*
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
 
 
 private val logger = KotlinLogging.logger {}
@@ -33,18 +33,28 @@ private val logger = KotlinLogging.logger {}
 class TestServerOptions(private val https: Boolean = false) : ServerOptions {
     var queue = ArrayBlockingQueue<String>(100)
 
-
-
     override fun createSocket(): ServerSocket {
+        return getServerSocketFactory().createServerSocket(GlobalVariables.PORT)
+            .apply { logger.info("Created server socket on port:${GlobalVariables.PORT}") }
+    }
+
+    private fun getServerSocketFactory(): ServerSocketFactory {
         if (https) {
-            return SSLServerSocketFactory.getDefault().createServerSocket(GlobalVariables.PORT) as SSLServerSocket
+            val passphrase = "servertest".toCharArray()
+            val ctx: SSLContext = SSLContext.getInstance("TLSv1.3")
+            val kmf: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+            val ks: KeyStore = KeyStore.getInstance("JKS")
+            this::class.java.classLoader.getResourceAsStream("servertest").use { ks.load(it, passphrase) }
+            kmf.init(ks, passphrase)
+            ctx.init(kmf.keyManagers, null, null)
+            return ctx.serverSocketFactory
         }
-        return ServerSocketFactory.getDefault().createServerSocket(GlobalVariables.PORT).apply { logger.info("Created server socket on port:${GlobalVariables.PORT}") }
+        return ServerSocketFactory.getDefault()
     }
 
     override fun createExecutorService(): ExecutorService {
         val threadCount = AtomicInteger(1)
-        return Executors.newFixedThreadPool(12) { runnable: Runnable? ->
+        return Executors.newFixedThreadPool(GlobalVariables.THREADS) { runnable: Runnable? ->
             Thread(runnable).apply {
                 isDaemon = true
                 name = "th2-http-server-${threadCount.incrementAndGet()}"
