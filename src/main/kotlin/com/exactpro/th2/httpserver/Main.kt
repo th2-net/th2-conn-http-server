@@ -135,7 +135,7 @@ class Main {
                 throw IllegalStateException("Failed to subscribe to input queue", it)
             }
 
-            val server = Th2HttpServer(eventStore, options, settings.terminationTime).apply {
+            val server = Th2HttpServer(eventStore, options, settings.terminationTime, settings.socketDelayCheck).apply {
                 registerResource("server", ::stop)
             }
 
@@ -157,6 +157,7 @@ class Main {
             val threads: Int = 24,
             val https: Boolean = false,
             val terminationTime: Long = 30,
+            val socketDelayCheck: Long = 15,
             val sslProtocol: String = "TLSv1.3",
             val keystorePass: String,
             val keystorePath: String = "",

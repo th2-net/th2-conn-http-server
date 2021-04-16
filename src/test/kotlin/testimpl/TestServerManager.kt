@@ -1,3 +1,5 @@
+package testimpl
+
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.RawMessage
@@ -7,14 +9,13 @@ import com.exactpro.th2.httpserver.server.Th2HttpServer
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.google.protobuf.ByteString
 import mu.KotlinLogging
-import testimpl.TestServerOptions
 import java.io.File
 
 private val LOGGER = KotlinLogging.logger { }
 
-open class TestServerManager(private val https: Boolean = false) {
+open class TestServerManager(private val https: Boolean = false, socketDelayCheck: Long = 15) {
     private val options = TestServerOptions(https)
-    private val th2server = Th2HttpServer({ _, _, _ -> Event.start() }, options, 1)
+    private val th2server = Th2HttpServer({ _, _, _ -> Event.start() }, options, 1, socketDelayCheck)
 
     val response = { uuid: String ->
         val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
@@ -34,7 +35,7 @@ open class TestServerManager(private val https: Boolean = false) {
 
     fun start() {
         if (https) {
-            val truststore: String = File(this::class.java.classLoader.getResource("TestTrustStore").getFile()).absolutePath
+            val truststore: String = File(this::class.java.classLoader.getResource("TestTrustStore").file).absolutePath
             val pass = "servertest"
             System.setProperty("javax.net.ssl.trustStore", truststore)
             System.setProperty("javax.net.ssl.trustStorePassword", pass)
