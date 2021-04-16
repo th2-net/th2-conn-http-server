@@ -11,17 +11,20 @@
  * limitations under the License.
  */
 
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import mu.KotlinLogging
 import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 import rawhttp.core.RawHttp
-import rawhttp.core.RawHttpResponse
 import rawhttp.core.client.TcpRawHttpClient
 import testimpl.TestClientOptions
-import java.util.concurrent.*
+import testimpl.TestServerManager
 
 private val LOGGER = KotlinLogging.logger { }
 
@@ -56,31 +59,24 @@ class TestServerResponse {
 
         val maxInstances = GlobalVariables.THREADS
 
-        val clients = mutableListOf<TcpRawHttpClient>()
-        val futures = mutableListOf<Future<RawHttpResponse<Void>>>()
+        val clients = List(maxInstances) { TcpRawHttpClient(TestClientOptions(false)) }
+
         try {
-            for (i in 0 until maxInstances) {
-                futures.add(executor.submit(
-                    Callable {
-                        TcpRawHttpClient(TestClientOptions(false)).apply { clients.add(this) }.send(request)
-                    }
-                ))
-                LOGGER.debug { "Futures created: ${i + 1}" }
-            }
+            val futures = clients.map { executor.submit(Callable { it.send(request) }) }
 
             repeat(maxInstances) {
                 server.handleResponse()
                 LOGGER.debug { "Server handled response number: ${it+1}" }
             }
 
-            for (i in 0 until maxInstances) {
-                futures[i].runCatching {
-                    val response = get(15, TimeUnit.SECONDS).apply { LOGGER.debug { "[${i+1}] Feature returned response" } }
-                    assertEquals(response.statusCode, 200)
+            futures.forEachIndexed { index, future ->
+                future.runCatching {
+                    val response = get(15, TimeUnit.SECONDS)
+                    LOGGER.debug { "[${index + 1}] Feature returned response: $response" }
+                    Assertions.assertEquals(response.statusCode, 200)
+                    LOGGER.debug { "${index + 1} test passed" }
                 }.onFailure {
-                    fail { "Can't get response ${i + 1}: \n$it" }
-                }.onSuccess {
-                    LOGGER.debug { "${i + 1} test passed" }
+                    fail("Can't get response ${index + 1}", it)
                 }
             }
         } catch (e: Exception) {
