@@ -17,11 +17,15 @@ import com.exactpro.th2.common.grpc.Message
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.addField
+import com.exactpro.th2.common.message.addFields
 import com.exactpro.th2.common.message.message
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.google.protobuf.ByteString
+import mu.KotlinLogging
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+
+private val LOGGER = KotlinLogging.logger { }
 
 class TestTh2Response {
 
@@ -93,6 +97,30 @@ class TestTh2Response {
     }
 
     @Test
+    fun bonusHeadersTest() {
+        // Auto generation check
+        val headers = mutableListOf<Header>()
+        headers.add(Header("cookie", "cookie-test"))
+        headers.add(Header("test", "value=test-value;somevalue=sometest-value;"))
+        // + content length header by default
+        val response = Th2Response.Builder().setHead(
+            createHeadMessage(
+                uuid = "0-0-0-0-0",
+                bonusHeaders = headers
+            )
+        ).build()
+
+        LOGGER.debug( response.headers.toString())
+
+        Assertions.assertTrue(response.libResponse.isPresent)
+        Assertions.assertEquals(headers.size + 1, response.headers.headerNames.size)
+        headers.forEach {
+            Assertions.assertEquals(it.value, response.headers[it.name][0])
+        }
+    }
+
+
+    @Test
     fun th2ErrorTest() {
         val stateException = IllegalStateException().javaClass
         val argumentException = IllegalArgumentException().javaClass
@@ -154,6 +182,7 @@ class TestTh2Response {
         uuid: String? = null,
         contentLength: Int? = null,
         headType: String = "Response",
+        bonusHeaders: List<Header>? = null
     ): Message {
         return message(headType, Direction.FIRST, "test").apply {
             code?.let { this.addField("code", code) }
@@ -170,7 +199,9 @@ class TestTh2Response {
                 )
             }
             uuid?.let { this.metadataBuilder.putProperties("uuid", it) }
-
+            bonusHeaders?.map { message().addFields("name", it.name, "value", it.value).build() }.let {
+                this.addField("headers", it)
+            }
         }.build()
     }
 
@@ -186,3 +217,5 @@ class TestTh2Response {
     }
 
 }
+
+data class Header(val name: String, val value: String)
