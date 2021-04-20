@@ -17,11 +17,15 @@ import com.exactpro.th2.common.grpc.Message
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.addField
+import com.exactpro.th2.common.message.addFields
 import com.exactpro.th2.common.message.message
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.google.protobuf.ByteString
+import mu.KotlinLogging
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+
+private val LOGGER = KotlinLogging.logger { }
 
 class TestTh2Response {
 
@@ -54,7 +58,7 @@ class TestTh2Response {
             createHeadMessage(
                 404, uuid = "0-0-0-0-0",
                 reason = "Non",
-                contentLength = 5
+                bonusHeaders =  mutableListOf(Header("content-length", "4"))
             )
         ).setBody(
             createBodyMessage(
@@ -67,7 +71,8 @@ class TestTh2Response {
         Assertions.assertEquals("Non", response.startLine.reason)
         Assertions.assertEquals("0-0-0-0-0", response.libResponse.get().uuid)
         Assertions.assertEquals(emptyList<String>(), response.headers["content-type"])
-        Assertions.assertEquals("5", response.headers["content-length"][0])
+        Assertions.assertEquals(1, response.headers["content-length"].size)
+        Assertions.assertEquals("4", response.headers["content-length"][0])
     }
 
     @Test
@@ -75,8 +80,7 @@ class TestTh2Response {
         // Auto generation check
         val response = Th2Response.Builder().setHead(
             createHeadMessage(
-                uuid = "0-0-0-0-0",
-                contentLength = 4
+                uuid = "0-0-0-0-0"
             )
         ).setBody(
             createBodyMessage(
@@ -89,8 +93,34 @@ class TestTh2Response {
         Assertions.assertEquals("OK", response.startLine.reason)
         Assertions.assertEquals("0-0-0-0-0", response.libResponse.get().uuid)
         Assertions.assertEquals(emptyList<String>(), response.headers["content-type"])
-        Assertions.assertEquals("4", response.headers["content-length"][0])
+        Assertions.assertEquals(1, response.headers["content-length"].size)
+        Assertions.assertEquals("10", response.headers["content-length"][0])
     }
+
+    @Test
+    fun bonusHeadersTest() {
+        // Auto generation check
+        val headers = mutableListOf<Header>()
+        headers.add(Header("cookie", "cookie-test"))
+        headers.add(Header("test", "value=test-value;somevalue=sometest-value;"))
+        // + content length header by default
+        val response = Th2Response.Builder().setHead(
+            createHeadMessage(
+                uuid = "0-0-0-0-0",
+                bonusHeaders = headers
+            )
+        ).build()
+
+        LOGGER.debug( response.headers.toString())
+
+        Assertions.assertTrue(response.libResponse.isPresent)
+        Assertions.assertEquals(headers.size + 1, response.headers.headerNames.size)
+        headers.forEach {
+            Assertions.assertEquals(1, response.headers[it.name].size)
+            Assertions.assertEquals(it.value, response.headers[it.name][0])
+        }
+    }
+
 
     @Test
     fun th2ErrorTest() {
@@ -152,25 +182,17 @@ class TestTh2Response {
         code: Int? = null,
         reason: String? = null,
         uuid: String? = null,
-        contentLength: Int? = null,
         headType: String = "Response",
+        bonusHeaders: List<Header>? = null
     ): Message {
         return message(headType, Direction.FIRST, "test").apply {
             code?.let { this.addField("code", code) }
             reason?.let { this.addField("reason", reason) }
             this.metadataBuilder.protocol = "http"
-            if (contentLength != null) {
-                this.addField(
-                    "headers", listOf(
-                        message("header").apply {
-                            this.addField("name", "Content-Length")
-                            this.addField("value", contentLength)
-                        }.build()
-                    )
-                )
-            }
             uuid?.let { this.metadataBuilder.putProperties("uuid", it) }
-
+            bonusHeaders?.map { message().addFields("name", it.name, "value", it.value).build() }.let {
+                this.addField("headers", it)
+            }
         }.build()
     }
 
@@ -186,3 +208,5 @@ class TestTh2Response {
     }
 
 }
+
+data class Header(val name: String, val value: String)

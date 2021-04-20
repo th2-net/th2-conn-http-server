@@ -159,7 +159,7 @@ class Main {
             val terminationTime: Long = 30,
             val socketDelayCheck: Long = 15,
             val sslProtocol: String = "TLSv1.3",
-            val keystorePass: String,
+            val keystorePass: String = "",
             val keystorePath: String = "",
             val keystoreType: String = "JKS",
             val keyManagerAlgorithm: String = "SunX509"
