@@ -1,4 +1,4 @@
-# HTTP SERVER v0.0.1
+# HTTP SERVER v0.1.0
 
 This microservice allows performing HTTP responses and receive HTTP requests.
 
@@ -16,7 +16,9 @@ Main configuration is done via setting following properties in a custom configur
 + **keystoreType** - type of keystore (`JKS` by default)
 + **keyManagerAlgorithm** - type of keystore algorithm (`SunX509` by default)
 
+## NOTE
 
+Please before production usage put your personal keystore in properties, its not safe to use default keystore, only purpose of default one is test
 
 ### Configuration example
 ```yaml
@@ -114,7 +116,7 @@ spec:
 
 ## Instruction to regenerate test keys
 1) `keytool -keystore servertest -genkey -alias servertest -keyalg RSA` - to create servertest keystore
-   
+
 2) `keytool -export -alias servertest -storepass servertest -file servertest.cer -keystore servertest` - to export certificate file outside keystore
 
 3) `keytool -import -file servertest.cer -alias servertest -keystore TestTrustStore` - to import certificate inside of trust store

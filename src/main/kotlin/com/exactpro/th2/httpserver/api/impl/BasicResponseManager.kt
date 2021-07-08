@@ -16,6 +16,7 @@ package com.exactpro.th2.httpserver.api.impl
 
 
 import com.exactpro.th2.common.grpc.MessageGroup
+import com.exactpro.th2.common.message.toJson
 import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.api.IResponseManager.ResponseManagerContext
 import com.exactpro.th2.httpserver.server.responses.Th2Response
@@ -34,7 +35,7 @@ class BasicResponseManager : IResponseManager {
     }
 
     override fun handleResponse(messages: MessageGroup) {
-        logger.debug { "Handling message from mq (Response)" }
+        logger.debug { "Handling messages from mq (Response): \n${messages.toJson()}" }
         answer(Th2Response.Builder().setGroup(messages).build())
     }
 
