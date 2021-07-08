@@ -38,10 +38,10 @@ class DialogueManager(private val socketDelayCheck: Long) : Closeable {
             dialogues.forEach { (key, value) ->
                 value.socket.runCatching {
                     if(isClosed) {
-                        dialogues.remove(key).apply { LOGGER.debug("inactive socket [$key] was removed from store") }
+                        dialogues.remove(key).apply { LOGGER.debug("Inactive socket [$key] was removed from store") }
                     }
                 }.onFailure {
-                    dialogues.remove(key).apply { LOGGER.debug("inactive socket [$key] was removed from store") }
+                    dialogues.remove(key).apply { LOGGER.debug("Inactive socket [$key] was removed from store") }
                 }
             }
         }

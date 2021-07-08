@@ -125,7 +125,7 @@ internal class Th2HttpServer(
         try {
             val uuid: String = response.libResponse.get().uuid
             LOGGER.debug { "Message processing for $uuid has been started " }
-            dialogManager.dialogues.remove(uuid)?.let {
+            dialogManager.dialogues[uuid]?.let {
                 options.prepareResponse(it.request, response).writeTo(it.socket.getOutputStream())
                 LOGGER.debug("Response: \n$response\nwas send to client")
             } ?: run {
