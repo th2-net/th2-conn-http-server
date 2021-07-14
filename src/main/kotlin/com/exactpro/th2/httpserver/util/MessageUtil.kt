@@ -25,19 +25,13 @@ import com.exactpro.th2.common.grpc.Message
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.grpc.RawMessage
-import com.exactpro.th2.common.message.getInt
-import com.exactpro.th2.common.message.getList
-import com.exactpro.th2.common.message.getString
 import com.exactpro.th2.common.message.toTimestamp
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite.Builder
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 import rawhttp.core.*
-import rawhttp.core.HttpVersion.HTTP_1_1
-import rawhttp.core.body.BytesBody
 import java.io.ByteArrayOutputStream
-import java.net.URI
 import java.time.Instant
 
 private inline operator fun <T : Builder> T.invoke(block: T.() -> Unit) = apply(block)

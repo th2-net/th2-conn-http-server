@@ -23,7 +23,6 @@ import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import rawhttp.core.body.BodyReader
-import rawhttp.core.errors.InvalidHttpRequest
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -35,7 +34,6 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import kotlin.Exception
 import kotlin.NoSuchElementException
-
 
 private val LOGGER = KotlinLogging.logger { }
 
@@ -84,39 +82,39 @@ internal class Th2HttpServer(
 
     private fun handle(client: Socket) {
         var request: RawHttpRequest
-        var serverWillCloseConnection = false
-        while (!serverWillCloseConnection) {
+        var isClosing = false
+        while (!isClosing) {
             try {
                 request = http.parseRequest(
                     client.getInputStream(),
                     (client.remoteSocketAddress as InetSocketAddress).address
                 )
-
                 val requestEagerly = request.eagerly().apply { LOGGER.debug("Received request: \n$this\n") }
 
                 val uuid = UUID.randomUUID().toString()
                 additionalExecutors.submit { options.onRequest(requestEagerly, uuid) }
-                val connectionOption = request.headers.getFirst("Connection")
-                serverWillCloseConnection =
-                    connectionOption.map { string: String? -> "close".equals(string, ignoreCase = true) }.orElse(false)
-                if (!serverWillCloseConnection) serverWillCloseConnection =
-                    !keepAlive(request.startLine.httpVersion, connectionOption)
 
+                // Check if we need to close connection.
+                // Points of closing:
+                // 1) Close in connection property of request
+                // 2) Keep alive property is not present
+                request.headers.getFirst("Connection").let {
+                    isClosing = it.map { string: String? -> "close".equals(string, ignoreCase = true) }.orElse(false)
+                    isClosing = isClosing || !keepAlive(request.startLine.httpVersion, it)
+                }
 
-                if (!serverWillCloseConnection) {
+                if (!isClosing) {
                     dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client)
-                    LOGGER.debug("Stored dialog: $uuid")
+                    LOGGER.debug("Connection is persist. Stored dialog: $uuid")
                 }
-
             } catch (e: Exception) {
-                if (e !is SocketException && e is InvalidHttpRequest && e.lineNumber == 0) {
-                    LOGGER.debug { "Client closed connection" }
-                } else {
-                    serverError("Failed to handle request, broken socket", e)
+                when(e) {
+                    is SocketException -> serverWarn("Socket closed", e)
+                    else -> serverError("Failed to handle request.", e)
                 }
-                serverWillCloseConnection = true // cannot keep listening anymore
+                isClosing = true // cannot keep listening anymore
             } finally {
-                if (serverWillCloseConnection) client.runCatching(Socket::close)
+                if (isClosing) client.runCatching(Socket::close)
             }
         }
     }
@@ -125,7 +123,7 @@ internal class Th2HttpServer(
         try {
             val uuid: String = response.libResponse.get().uuid
             LOGGER.debug { "Message processing for $uuid has been started " }
-            dialogManager.dialogues.remove(uuid)?.let {
+            dialogManager.dialogues[uuid]?.let {
                 options.prepareResponse(it.request, response).writeTo(it.socket.getOutputStream())
                 LOGGER.debug("Response: \n$response\nwas send to client")
             } ?: run {
@@ -190,8 +188,12 @@ internal class Th2HttpServer(
         // THEN the connection will persist
         // OTHERWISE close the connection
         return !httpVersion.isOlderThan(HttpVersion.HTTP_1_1) || httpVersion == HttpVersion.HTTP_1_0
-                && connectionOption.map { option: String? -> "keep-alive".equals(option, ignoreCase = true) }
-            .orElse(false)
+                && connectionOption.map { option: String? -> "keep-alive".equals(option, ignoreCase = true) }.orElse(false)
+    }
+
+    private fun serverWarn(msg: String, throwable: Throwable?) {
+        eventStore("WARN: $msg", "Passed", throwable)
+        LOGGER.warn(throwable) { msg }
     }
 
     private fun serverError(msg: String, throwable: Throwable?) {
