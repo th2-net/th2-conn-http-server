@@ -62,4 +62,4 @@ class DialogueManager(private val socketDelayCheck: Long) : Closeable {
 
 }
 
-data class Dialogue(val request: RawHttpRequest, val socket: Socket)
+data class Dialogue(val request: RawHttpRequest, val socket: Socket, val close: Boolean)

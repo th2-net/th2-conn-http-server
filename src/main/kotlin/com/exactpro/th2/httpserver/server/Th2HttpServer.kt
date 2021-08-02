@@ -23,13 +23,13 @@ import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import rawhttp.core.body.BodyReader
+import rawhttp.core.errors.InvalidHttpRequest
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
 import java.util.UUID
-import java.util.Optional
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import kotlin.Exception
@@ -83,6 +83,7 @@ internal class Th2HttpServer(
     private fun handle(client: Socket) {
         var request: RawHttpRequest
         var isClosing = false
+        var hadKeepAlive = false
         while (!isClosing) {
             try {
                 request = http.parseRequest(
@@ -94,27 +95,36 @@ internal class Th2HttpServer(
                 val uuid = UUID.randomUUID().toString()
                 additionalExecutors.submit { options.onRequest(requestEagerly, uuid) }
 
-                // Check if we need to close connection.
-                // Points of closing:
-                // 1) Close in connection property of request
-                // 2) Keep alive property is not present
+                // HTTP 1.0
+                // IF CLOSE THAN CLOSE
+                // IF NO CLOSE THAN CHECK IS IT FIRST REQUEST
+                // IF TRUE CHECK KEEP ALIVE
+                // IF FALSE NO CLOSE
+
+                // HTTP 1.1
+                // IF CLOSE THAN CLOSE
+
+                // https://datatracker.ietf.org/doc/html/rfc7230#section-6.3
+
                 request.headers.getFirst("Connection").let {
-                    isClosing = it.map { string: String? -> "close".equals(string, ignoreCase = true) }.orElse(false)
-                    isClosing = isClosing || !keepAlive(request.startLine.httpVersion, it)
+                    isClosing = it.isPresent && it.get().equals("close", true)
+                    if(!isClosing && request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1)) {
+                        if (!hadKeepAlive) {
+                            isClosing = !(it.isPresent && it.get().equals("keep-alive", true).apply { hadKeepAlive = this })
+                        }
+                    }
                 }
 
-                if (!isClosing) {
-                    dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client)
-                    LOGGER.debug("Connection is persist. Stored dialog: $uuid")
-                }
+                dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client, isClosing)
+                LOGGER.debug("Connection is persist. Stored dialog: $uuid")
             } catch (e: Exception) {
                 when(e) {
+                    is InvalidHttpRequest ->  serverError("Failed to handle request.", e)
                     is SocketException -> serverWarn("Socket closed", e)
                     else -> serverError("Failed to handle request.", e)
                 }
-                isClosing = true // cannot keep listening anymore
-            } finally {
-                if (isClosing) client.runCatching(Socket::close)
+                client.runCatching(Socket::close)
+                break
             }
         }
     }
@@ -126,6 +136,10 @@ internal class Th2HttpServer(
             dialogManager.dialogues[uuid]?.let {
                 options.prepareResponse(it.request, response).writeTo(it.socket.getOutputStream())
                 LOGGER.debug("Response: \n$response\nwas send to client")
+                if (it.close) {
+                    it.socket.close()
+                    dialogManager.dialogues.remove(uuid)
+                }
             } ?: run {
                 serverError(
                     "Failed to handle response, no matching client found. Response: /n$response",
@@ -179,21 +193,9 @@ internal class Th2HttpServer(
         }
     }
 
-    private fun keepAlive(httpVersion: HttpVersion, connectionOption: Optional<String>): Boolean {
-        // https://tools.ietf.org/html/rfc7230#section-6.3
-        // If the received protocol is HTTP/1.1 (or later)
-        // OR
-        // If the received protocol is HTTP/1.0, the "keep-alive" connection
-        // option is present
-        // THEN the connection will persist
-        // OTHERWISE close the connection
-        return !httpVersion.isOlderThan(HttpVersion.HTTP_1_1) || httpVersion == HttpVersion.HTTP_1_0
-                && connectionOption.map { option: String? -> "keep-alive".equals(option, ignoreCase = true) }.orElse(false)
-    }
-
     private fun serverWarn(msg: String, throwable: Throwable?) {
         eventStore("WARN: $msg", "Passed", throwable)
-        LOGGER.warn(throwable) { msg }
+        LOGGER.warn { msg }
     }
 
     private fun serverError(msg: String, throwable: Throwable?) {
