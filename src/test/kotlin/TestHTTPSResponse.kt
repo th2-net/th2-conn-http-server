@@ -89,7 +89,7 @@ class TestHTTPSResponse {
 
             futures.forEachIndexed { index, future ->
                 future.runCatching {
-                    val response = this.first.get(15, TimeUnit.SECONDS)
+                    val response = this.first.get(20, TimeUnit.SECONDS)
                     LOGGER.debug { "[${index + 1}] Feature returned response: $response" }
                     Assertions.assertEquals(response.statusCode, 200)
                     LOGGER.debug { "${index + 1} test passed" }
