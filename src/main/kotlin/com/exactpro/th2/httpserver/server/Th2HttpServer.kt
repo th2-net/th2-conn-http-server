@@ -44,8 +44,7 @@ internal class Th2HttpServer(
     socketDelayCheck: Long
 ) : HttpServer {
 
-    @Volatile
-    private var listen: Boolean = true
+    @Volatile private var listen: Boolean = true
     private val dialogManager: DialogueManager = DialogueManager(socketDelayCheck)
 
     private var socket: ServerSocket = options.createSocket()
@@ -116,7 +115,7 @@ internal class Th2HttpServer(
                 }
 
                 dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client, isClosing)
-                LOGGER.debug("Connection is persist. Stored dialog: $uuid")
+                LOGGER.debug("Connection is persist: $isClosing. Stored dialog: $uuid")
             } catch (e: Exception) {
                 when(e) {
                     is InvalidHttpRequest ->  serverError("Failed to handle request.", e)
@@ -137,6 +136,7 @@ internal class Th2HttpServer(
                 options.prepareResponse(it.request, response).writeTo(it.socket.getOutputStream())
                 LOGGER.debug("Response: \n$response\nwas send to client")
                 if (it.close) {
+                    LOGGER.debug { "Response was sent. Closing socket due last response." }
                     it.socket.close()
                     dialogManager.dialogues.remove(uuid)
                 }
