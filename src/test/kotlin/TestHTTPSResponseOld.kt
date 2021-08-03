@@ -30,7 +30,7 @@ import testimpl.TestServerManager
 
 private val LOGGER = KotlinLogging.logger { }
 
-class TestHTTPSResponse {
+class TestHTTPSResponseOld {
     companion object {
         private val server = TestServerManager(true)
 
@@ -49,21 +49,11 @@ class TestHTTPSResponse {
 
     @Test
     fun `old http`() {
+        LOGGER.info { "HTTP 1.0 test" }
+
         val request = RawHttp().parseRequest(
             """
             GET / HTTP/1.0
-            Host: localhost:${GlobalVariables.PORT}
-            User-Agent: client RawHTTP
-            """.trimIndent()
-        )
-        stressTest(request)
-    }
-
-    @Test
-    fun `new http`() {
-        val request = RawHttp().parseRequest(
-            """
-            GET / HTTP/1.1
             Host: localhost:${GlobalVariables.PORT}
             User-Agent: client RawHTTP
             """.trimIndent()
