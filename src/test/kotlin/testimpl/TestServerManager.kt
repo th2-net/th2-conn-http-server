@@ -53,14 +53,16 @@ open class TestServerManager(private val https: Boolean = false, socketDelayChec
         val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
             addField("code", 200)
             addField("reason", "Test reason")
+            parentEventId = EventID.getDefaultInstance()
             metadataBuilder.protocol = "http"
             metadataBuilder.putProperties("uuid", uuid)
-        }.build().apply { LOGGER.debug { "Header message is created" } }
+        }.build()
 
         val bodyMessage = RawMessage.newBuilder().apply {
+            parentEventId = EventID.getDefaultInstance()
             body = ByteString.copyFrom("SOME BYTES".toByteArray())
             metadata = metadataBuilder.putProperties("contentType", "application").build()
-        }.build().apply { LOGGER.debug { "Body message is created" } }
+        }.build()
 
         Th2Response.Builder().setHead(responseMessage).setBody(bodyMessage).build()
     }

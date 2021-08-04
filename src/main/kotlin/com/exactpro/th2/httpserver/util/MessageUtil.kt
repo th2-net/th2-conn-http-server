@@ -16,16 +16,19 @@
 
 package com.exactpro.th2.httpserver.util
 
+import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.grpc.AnyMessage
 import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.Direction.FIRST
 import com.exactpro.th2.common.grpc.Direction.SECOND
 import com.exactpro.th2.common.grpc.Message
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.toTimestamp
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite.Builder
 import com.google.protobuf.MessageOrBuilder
@@ -63,9 +66,11 @@ private fun ByteArrayOutputStream.toBatch(
     connectionId: ConnectionID,
     direction: Direction,
     sequence: Long,
-    metadataProperties: Map<String, String>
+    metadataProperties: Map<String, String>,
+    eventId: EventID
 ) = RawMessage.newBuilder().apply {
     this.body = ByteString.copyFrom(toByteArray())
+    this.parentEventId = eventId
     this.metadataBuilder {
         putAllProperties(metadataProperties)
         this.timestamp = Instant.now().toTimestamp()
@@ -77,25 +82,25 @@ private fun ByteArrayOutputStream.toBatch(
     }
 }.toBatch()
 
-private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, uuid: String): MessageGroupBatch {
+private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, uuid: String,  eventId: EventID): MessageGroupBatch {
     val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString(), "uuid" to uuid) }
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
         headers.writeTo(this)
         body.ifPresent { it.writeTo(this) }
-        toBatch(connectionId, direction, sequence, metadataProperties)
+        toBatch(connectionId, direction, sequence, metadataProperties, eventId)
     }
 }
 
-private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest): MessageGroupBatch {
+private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, eventId: EventID): MessageGroupBatch {
     val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString()) }
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
         headers.writeTo(this)
         body.ifPresent { it.writeTo(this) }
-        toBatch(connectionId, direction, sequence, metadataProperties)
+        toBatch(connectionId, direction, sequence, metadataProperties, eventId)
     }
 }
 
-fun RawHttpRequest.toBatch(connectionId: ConnectionID, sequence: Long, id: String): MessageGroupBatch = toBatch(connectionId, SECOND, sequence, this, id)
-fun RawHttpResponse<*>.toBatch(connectionId: ConnectionID, sequence: Long, request: RawHttpRequest): MessageGroupBatch = toBatch(connectionId, FIRST, sequence, request)
+fun RawHttpRequest.toBatch(connectionId: ConnectionID, sequence: Long, id: String, eventId: EventID): MessageGroupBatch = toBatch(connectionId, SECOND, sequence, this, id, eventId)
+fun RawHttpResponse<Th2Response>.toBatch(connectionId: ConnectionID, sequence: Long, request: RawHttpRequest): MessageGroupBatch = toBatch(connectionId, FIRST, sequence, request, this.libResponse.get().eventId)

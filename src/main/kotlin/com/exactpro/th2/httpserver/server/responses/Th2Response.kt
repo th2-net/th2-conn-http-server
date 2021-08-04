@@ -49,20 +49,22 @@ private const val REASON_PROPERTY = HEADERS_REASON_FIELD
 private const val DEFAULT_CODE = 200
 private const val DEFAULT_REASON = "OK"
 
-data class Th2Response(val uuid: String, val eventId: EventID?) {
+data class Th2Response(val uuid: String, val eventId: EventID) {
     class Builder {
         private val metadata = hashMapOf<String, String>()
 
         private var head: Message = Message.getDefaultInstance()
         private var body: RawMessage = RawMessage.getDefaultInstance()
-        private var eventId: EventID? = null
+        private lateinit var eventId: EventID
 
         fun setHead(message: Message): Builder {
             this.head = message.requireType(RESPONSE_MESSAGE)
+            eventId = message.parentEventId
             return this
         }
 
         fun setBody(message: RawMessage): Builder {
+            eventId = message.parentEventId
             this.body = message
             return this
         }
@@ -86,7 +88,11 @@ data class Th2Response(val uuid: String, val eventId: EventID?) {
                 2 -> {
                     setHead(messages.getMessages(0).toParsed("Head"))
                     setBody(messages.getMessages(1).toRaw("Body"))
-                    eventId = messages.getMessages(0).rawMessage.parentEventId
+                    eventId = if (messages.getMessages(0).message.parentEventId.id.isNotEmpty()) {
+                        messages.getMessages(0).message.parentEventId
+                    } else {
+                        messages.getMessages(1).rawMessage.parentEventId
+                    }
                 }
                 else -> error("Message group contains more than 2 messages")
             }
@@ -95,6 +101,8 @@ data class Th2Response(val uuid: String, val eventId: EventID?) {
 
         fun build(): RawHttpResponse<Th2Response> {
             metadata.putAll(body.metadata.propertiesMap)
+
+            require(this::eventId.isInitialized) {"EventID must be initialized!"}
 
             val code: Int = head.getInt(HEADERS_CODE_FIELD) ?: metadata[CODE_PROPERTY]?.toInt() ?: DEFAULT_CODE
             val reason = head.getString(HEADERS_REASON_FIELD) ?: metadata[REASON_PROPERTY] ?: DEFAULT_REASON

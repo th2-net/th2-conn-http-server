@@ -14,10 +14,13 @@
 
 package com.exactpro.th2.httpserver.server.options
 
+import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.grpc.ConnectionID
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.exactpro.th2.httpserver.util.toBatch
 import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
@@ -93,13 +96,14 @@ class Th2ServerOptions(
     }
 
     override fun onRequest(request: RawHttpRequest, id: String) {
+        val event = Event.start().endTimestamp().toProto(null)
         messageRouter.sendAll(
-            request.toBatch(connectionID, generateSequenceRequest(), id),
+            request.toBatch(connectionID, generateSequenceRequest(), id, event.id),
             QueueAttribute.SECOND.toString()
         )
     }
 
-    override fun <T : RawHttpResponse<*>> prepareResponse(request: RawHttpRequest, response: T): T {
+    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>): RawHttpResponse<Th2Response> {
         messageRouter.sendAll(
             response.toBatch(connectionID, generateSequenceResponse(), request),
             QueueAttribute.FIRST.toString()

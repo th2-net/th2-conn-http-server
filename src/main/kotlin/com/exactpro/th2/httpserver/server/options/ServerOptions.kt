@@ -14,6 +14,7 @@
 
 package com.exactpro.th2.httpserver.server.options
 
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpOptions
 import rawhttp.core.RawHttpRequest
@@ -60,5 +61,5 @@ interface ServerOptions {
      *
      * @return response with specific changes or without them
      */
-    fun <T : RawHttpResponse<*>> prepareResponse(request: RawHttpRequest, response: T) = response
+    fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>) = response
 }
