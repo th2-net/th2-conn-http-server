@@ -14,9 +14,10 @@
 
 package com.exactpro.th2.httpserver.server.responses
 
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.Message
-import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.RawMessage
+import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.message.getInt
 import com.exactpro.th2.common.message.getList
 import com.exactpro.th2.common.message.getString
@@ -48,12 +49,13 @@ private const val REASON_PROPERTY = HEADERS_REASON_FIELD
 private const val DEFAULT_CODE = 200
 private const val DEFAULT_REASON = "OK"
 
-data class Th2Response(val uuid: String) {
+data class Th2Response(val uuid: String, val eventId: EventID?) {
     class Builder {
         private val metadata = hashMapOf<String, String>()
 
         private var head: Message = Message.getDefaultInstance()
         private var body: RawMessage = RawMessage.getDefaultInstance()
+        private var eventId: EventID? = null
 
         fun setHead(message: Message): Builder {
             this.head = message.requireType(RESPONSE_MESSAGE)
@@ -70,14 +72,21 @@ data class Th2Response(val uuid: String) {
                 0 -> error("Message group is empty")
                 1 -> messages.getMessages(0).run {
                     when {
-                        hasMessage() -> setHead(message)
-                        hasRawMessage() -> setBody(rawMessage)
+                        hasMessage() -> {
+                            eventId = message.parentEventId
+                            setHead(message)
+                        }
+                        hasRawMessage() -> {
+                            eventId = rawMessage.parentEventId
+                            setBody(rawMessage)
+                        }
                         else -> error("Single message in group is neither parsed nor raw: ${toPrettyString()}")
                     }
                 }
                 2 -> {
                     setHead(messages.getMessages(0).toParsed("Head"))
                     setBody(messages.getMessages(1).toRaw("Body"))
+                    eventId = messages.getMessages(0).rawMessage.parentEventId
                 }
                 else -> error("Message group contains more than 2 messages")
             }
@@ -113,7 +122,7 @@ data class Th2Response(val uuid: String) {
             val uuid = head.metadata.propertiesMap["uuid"] ?: body.metadata.propertiesMap["uuid"]
             checkNotNull(uuid) { "UUID is required" }
             return RawHttpResponse<Th2Response>(
-                Th2Response(uuid),
+                Th2Response(uuid, eventId),
                 null,
                 statusLine,
                 httpHeaders.build(),

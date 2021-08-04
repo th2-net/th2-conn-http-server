@@ -19,9 +19,12 @@ import org.junit.jupiter.api.fail
 import rawhttp.core.RawHttp
 import testimpl.TestServerManager
 
-class TestHTTPSResponseOld {
+/*
+ * HTTP 1.1
+ */
+class TestHTTPResponseNew {
     companion object {
-        private val server = TestServerManager(true) {
+        private val server = TestServerManager(false) {
             fail("Server must be without errors", it)
         }
 
@@ -39,10 +42,11 @@ class TestHTTPSResponseOld {
     }
 
     @Test
-    fun `old http`() {
+    fun responseParallelTest() {
         val request = RawHttp().parseRequest(
             """
-            GET / HTTP/1.0
+            GET / HTTP/1.1
+            Connection: close
             Host: localhost:${GlobalVariables.PORT}
             User-Agent: client RawHTTP
             """.trimIndent()
@@ -50,4 +54,43 @@ class TestHTTPSResponseOld {
 
         server.stressSpam(request)
     }
+
+    @Test
+    fun responseLineTest() {
+        val requests = listOf(
+            RawHttp().parseRequest(
+                """
+            GET / HTTP/1.1
+            Host: localhost:${GlobalVariables.PORT}
+            User-Agent: client RawHTTP
+            """.trimIndent()
+            ),
+            RawHttp().parseRequest(
+                """
+            GET / HTTP/1.1
+            Host: localhost:${GlobalVariables.PORT}
+            User-Agent: client RawHTTP
+            """.trimIndent()
+            ),
+            RawHttp().parseRequest(
+                """
+            GET / HTTP/1.1
+            Connection: close
+            Host: localhost:${GlobalVariables.PORT}
+            User-Agent: client RawHTTP
+            """.trimIndent()
+            ),
+            RawHttp().parseRequest(
+                """
+            GET / HTTP/1.1
+            Host: localhost:${GlobalVariables.PORT}
+            User-Agent: client RawHTTP
+            """.trimIndent()
+            )
+
+        )
+        //TODO("NEED TO IMPLEMENT PERSIST CONNECTION TEST")
+        //server.stressSpam(request)
+    }
+
 }

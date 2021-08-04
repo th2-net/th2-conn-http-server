@@ -30,7 +30,9 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite.Builder
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
-import rawhttp.core.*
+import rawhttp.core.HttpMessage
+import rawhttp.core.RawHttpRequest
+import rawhttp.core.RawHttpResponse
 import java.io.ByteArrayOutputStream
 import java.time.Instant
 

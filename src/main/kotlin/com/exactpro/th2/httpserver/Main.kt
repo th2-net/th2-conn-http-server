@@ -17,6 +17,7 @@ package com.exactpro.th2.httpserver
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.EventBatch
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageListener
@@ -32,7 +33,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import mu.KotlinLogging
 import java.time.Instant
-import java.util.*
+import java.util.ServiceLoader
 import java.util.concurrent.ConcurrentLinkedDeque
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
@@ -109,9 +110,9 @@ class Main {
                 messageRouter
             )
 
-            val eventStore = { name: String, type: String, error: Throwable? ->
+            val eventStore = { name: String, type: String, eventId: EventID?, error: Throwable? ->
                 eventRouter.storeEvent(
-                    rootEventId,
+                    eventId?.id ?: rootEventId,
                     name,
                     type,
                     error
@@ -123,7 +124,7 @@ class Main {
                 message.groupsList.forEach { group ->
                     group.runCatching(responseManager::handleResponse).recoverCatching {
                         LOGGER.error(it) { "Failed to handle message group: ${group.toPrettyString()}" }
-                        eventStore("Failed to handle message group: ${group.toPrettyString()}", "Error", it)
+                        eventStore("Failed to handle message group: ${group.toPrettyString()}", "Error", null, it)
                     }
                 }
             }
@@ -145,7 +146,7 @@ class Main {
                 init(ResponseManagerContext(server::handleResponse))
             }.onFailure {
                 LOGGER.error(it) { "Failed to init response-manager" }
-                eventStore("Failed to init response-manager", "Error", it)
+                eventStore("Failed to init response-manager", "Error", null, it)
                 throw it
             }
 

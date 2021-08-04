@@ -15,6 +15,7 @@
 package com.exactpro.th2.httpserver.server
 
 import com.exactpro.th2.common.event.Event
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
@@ -23,7 +24,6 @@ import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import rawhttp.core.body.BodyReader
-import rawhttp.core.errors.InvalidHttpRequest
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -32,13 +32,11 @@ import java.net.SocketException
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
-import kotlin.Exception
-import kotlin.NoSuchElementException
 
 private val LOGGER = KotlinLogging.logger { }
 
 internal class Th2HttpServer(
-    private val eventStore: ((String, String, Throwable?) -> Event),
+    private val eventStore: ((String, String, eventId: EventID?, Throwable?) -> Event),
     private val options: ServerOptions,
     private val terminationTime: Long,
     socketDelayCheck: Long
@@ -57,17 +55,24 @@ internal class Th2HttpServer(
     override fun start() {
         Thread({
             while (listen) {
-                try {
+                runCatching {
                     val client = socket.accept()
 
                     // thread waiting to accept socket before continue
                     executorService.submit { handle(client) }
-                } catch (e: SocketException) {
-                    serverError("Broken or closed socket!", e)
-                    recreateSocket()
-                } catch (e: IOException) {
-                    serverError("Failed to accept client socket", e)
-                    if (socket.isClosed) recreateSocket()
+                }.onFailure {
+                    if (listen) {
+                        when (it) {
+                            is SocketException -> {
+                                onError("Broken or closed socket!", null, it)
+                                recreateSocket()
+                            }
+                            else -> {
+                                onError("Failed to accept client socket", null, it)
+                                if (socket.isClosed) recreateSocket()
+                            }
+                        }
+                    }
                 }
             }
         }, "th2-conn-http-server").start()
@@ -79,86 +84,80 @@ internal class Th2HttpServer(
         options.runCatching { socket = createSocket() }.onFailure { e -> LOGGER.error(e) { "Can't recreate socket!" } }
     }
 
+    /**
+     * All rules of closing and keep alive mechanisms have been found in specs
+     * https://datatracker.ietf.org/doc/html/rfc7230#section-6.3
+     * https://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01#Connection
+     * Please use it as reference in discussions and logic reworks
+     */
     private fun handle(client: Socket) {
         var request: RawHttpRequest
         var isClosing = false
-        var hadKeepAlive = false
         while (!isClosing) {
-            try {
+            runCatching {
                 request = http.parseRequest(
                     client.getInputStream(),
                     (client.remoteSocketAddress as InetSocketAddress).address
                 )
-                val requestEagerly = request.eagerly().apply { LOGGER.debug("Received request: \n$this\n") }
-
                 val uuid = UUID.randomUUID().toString()
+                val requestEagerly = request.eagerly().apply { LOGGER.debug("Received request: \n$this\nGenerated UUID: $uuid") }
+
+
                 additionalExecutors.submit { options.onRequest(requestEagerly, uuid) }
 
-                // HTTP 1.0
-                // IF CLOSE THAN CLOSE
-                // IF NO CLOSE THAN CHECK IS IT FIRST REQUEST
-                // IF TRUE CHECK KEEP ALIVE
-                // IF FALSE NO CLOSE
-
-                // HTTP 1.1
-                // IF CLOSE THAN CLOSE
-
-                // https://datatracker.ietf.org/doc/html/rfc7230#section-6.3
-
-                request.headers.getFirst("Connection").let {
-                    isClosing = it.isPresent && it.get().equals("close", true)
-                    if(!isClosing && request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1)) {
-                        if (!hadKeepAlive) {
-                            isClosing = !(it.isPresent && it.get().equals("keep-alive", true).apply { hadKeepAlive = this })
+                when(request.startLine.httpVersion) {
+                    HttpVersion.HTTP_1_1 -> {
+                        request.headers.getFirst("Connection").let {
+                            isClosing = it.isPresent && it.get().equals("close", true)
+                        }
+                    }
+                    else -> {
+                        isClosing=true
+                        request.headers.getFirst("Connection").ifPresent {
+                            isClosing = !it.equals("keep-alive", true)
                         }
                     }
                 }
 
-                dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client, isClosing)
-                LOGGER.debug("Connection is persist: $isClosing. Stored dialog: $uuid")
-            } catch (e: Exception) {
-                when(e) {
-                    is InvalidHttpRequest ->  serverError("Failed to handle request.", e)
-                    is SocketException -> serverWarn("Socket closed", e)
-                    else -> serverError("Failed to handle request.", e)
+                client.keepAlive = !isClosing
+                dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client)
+                LOGGER.debug("Connection is persist: ${!isClosing}. Stored dialog: $uuid")
+            }.onFailure {
+                isClosing = true
+                when(it) {
+                    is SocketException -> onError("Socket closed", null, it)
+                    else -> onError("Failed to handle request. Socket is closed: ${!client.isConnected && client.isClosed}", null, it)
                 }
                 client.runCatching(Socket::close)
-                break
             }
         }
     }
 
     fun handleResponse(response: RawHttpResponse<Th2Response>) {
-        try {
-            val uuid: String = response.libResponse.get().uuid
-            LOGGER.debug { "Message processing for $uuid has been started " }
-            dialogManager.dialogues[uuid]?.let {
-                options.prepareResponse(it.request, response).writeTo(it.socket.getOutputStream())
-                LOGGER.debug("Response: \n$response\nwas send to client")
-                if (it.close) {
-                    LOGGER.debug { "Response was sent. Closing socket due last response." }
+        val th2Response: Th2Response = response.runCatching { libResponse.get() }.onFailure {
+            onError("Can't handle response without th2 information", null, it)
+        }.getOrThrow()
+        val uuid = th2Response.uuid
+
+        runCatching {
+            dialogManager.dialogues.remove(uuid)?.let {
+                val finalResponse = options.prepareResponse(it.request, response)
+                finalResponse.writeTo(it.socket.getOutputStream())
+                onInfo("Response with UUID: $uuid was sent to client\n$finalResponse\n", th2Response.eventId)
+                if (!it.socket.keepAlive) {
+                    LOGGER.debug { "Response with UUID: $uuid was sent. Closing socket due last response." }
                     it.socket.close()
-                    dialogManager.dialogues.remove(uuid)
                 }
             } ?: run {
-                serverError(
-                    "Failed to handle response, no matching client found. Response: /n$response",
-                    null
-                )
+                throw NullPointerException("No matching client in store. $uuid")
             }
-        } catch (e: SocketException) {
-            serverError(
-                "Failed to handle response, socket is broken. Response: /n$response",
-                e
-            )
-        } catch (e: NoSuchElementException) {
-            serverError(
-                "Response is broken, please check api realization. Need to provide Th2Response object inside response",
-                e
-            )
-        } finally {
-            closeBodyOf(response)
+        }.onFailure {
+            when (it) {
+                is SocketException -> onError("Failed to handle response with UUID: $uuid, socket is broken. Response: /n$response", th2Response.eventId, it)
+                else -> onError("Can't handle response with UUID: $uuid. Response: /n$response", th2Response.eventId, it)
+            }
         }
+        closeBodyOf(response)
     }
 
     override fun stop() {
@@ -170,16 +169,8 @@ internal class Th2HttpServer(
         } catch (e: IOException) {
             LOGGER.warn(e) { "Failed to close Server socket" }
         } finally {
-            executorService.shutdown()
-            additionalExecutors.shutdown()
-            if (!executorService.awaitTermination(terminationTime, TimeUnit.SECONDS)) {
-                LOGGER.warn { "Socket Executors didn't turn off on specified time" }
-                executorService.shutdownNow()
-            }
-            if (!additionalExecutors.isTerminated) {
-                LOGGER.warn { "Additional Executors didn't turn off on specified time" }
-                additionalExecutors.shutdown()
-            }
+            executorService.awaitShutdown(terminationTime) { LOGGER.warn {"Sockets Executor service didn't turn off on specified time"} }
+            additionalExecutors.awaitShutdown(0L) { LOGGER.warn {"Additional Executor service didn't turn off on specified time"} }
         }
     }
 
@@ -193,18 +184,33 @@ internal class Th2HttpServer(
         }
     }
 
-    private fun serverWarn(msg: String, throwable: Throwable?) {
-        eventStore("WARN: $msg", "Passed", throwable)
-        LOGGER.warn { msg }
+    private fun onInfo(message: String, eventId: EventID?) {
+        LOGGER.info(message)
+        eventStore(message, "Passed", eventId, null)
     }
 
-    private fun serverError(msg: String, throwable: Throwable?) {
+    private fun onError(msg: String, eventId: EventID?, throwable: Throwable?) {
+        eventStore(msg, "Error", eventId, throwable)
         if (!listen) {
-            LOGGER.warn(throwable) { "Closed server: $msg" }
+            LOGGER.warn(throwable) { msg }
         } else {
-            eventStore(msg, "Error", throwable)
             LOGGER.error(throwable) { msg }
         }
     }
 
+    private fun ExecutorService.awaitShutdown(terminationTime: Long, onTimeout: () -> Unit) {
+        shutdown()
+        if (!isTerminated) {
+            if (terminationTime > 0 && !awaitTermination(terminationTime, TimeUnit.SECONDS)) {
+                shutdownNow()
+            } else {
+                shutdownNow()
+            }
+            onTimeout()
+        }
+
+    }
+
 }
+
+
