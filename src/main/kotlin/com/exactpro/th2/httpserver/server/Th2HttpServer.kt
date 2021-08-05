@@ -57,7 +57,7 @@ internal class Th2HttpServer(
             while (listen) {
                 runCatching {
                     val client = socket.accept()
-
+                    onInfo("Connected client: ${client.inetAddress}", null)
                     // thread waiting to accept socket before continue
                     executorService.submit { handle(client) }
                 }.onFailure {
@@ -102,7 +102,6 @@ internal class Th2HttpServer(
                 val uuid = UUID.randomUUID().toString()
                 val requestEagerly = request.eagerly().apply { LOGGER.debug("Received request: \n$this\nGenerated UUID: $uuid") }
 
-
                 additionalExecutors.submit { options.onRequest(requestEagerly, uuid) }
 
                 when(request.startLine.httpVersion) {
@@ -121,7 +120,7 @@ internal class Th2HttpServer(
 
                 client.keepAlive = !isClosing
                 dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client)
-                LOGGER.debug("Connection is persist: ${!isClosing}. Stored dialog: $uuid")
+                onInfo("Stored dialog: $uuid from socket: ${client.inetAddress} for request $requestEagerly", null)
             }.onFailure {
                 isClosing = true
                 when(it) {
@@ -145,7 +144,7 @@ internal class Th2HttpServer(
                 finalResponse.writeTo(it.socket.getOutputStream())
                 onInfo("Response with UUID: $uuid was sent to client\n$finalResponse\n", th2Response.eventId)
                 if (!it.socket.keepAlive) {
-                    LOGGER.debug { "Response with UUID: $uuid was sent. Closing socket due last response." }
+                    LOGGER.debug { "Response with UUID: $uuid was sent. Closing socket (${it.socket.inetAddress}) due last response." }
                     it.socket.close()
                 }
             } ?: run {
