@@ -184,17 +184,19 @@ internal class Th2HttpServer(
     }
 
     private fun onInfo(name: String, message: HttpMessage? = null, eventId: String? = null, uuid: String? = null) {
-        eventStore(name, message, eventId, uuid, null)
-        LOGGER.info("${uuid.orEmpty()} $name")
+        val info = "${uuid.orEmpty()} $name"
+        eventStore(info, message, eventId, uuid, null)
+        LOGGER.info(info)
         message?.toString().run(LOGGER::debug)
     }
 
     private fun onError(name: String, message: HttpMessage? = null, eventId: String? = null, uuid: String? = null, throwable: Throwable) {
-        eventStore(name, message, eventId, uuid, throwable)
+        val info = "${uuid.orEmpty()} $name"
+        eventStore(info, message, eventId, uuid, throwable)
         if (!listen) {
-            LOGGER.warn(throwable) { "${uuid.orEmpty()} $name" }
+            LOGGER.warn(throwable) { info }
         } else {
-            LOGGER.error(throwable) { "${uuid.orEmpty()} $name" }
+            LOGGER.error(throwable) { info }
         }
         message?.toString().run(LOGGER::debug)
     }
