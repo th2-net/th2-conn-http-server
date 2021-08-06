@@ -142,7 +142,7 @@ internal class Th2HttpServer(
             dialogManager.dialogues.remove(uuid)?.let {
                 val finalResponse = options.prepareResponse(it.request, response)
                 finalResponse.writeTo(it.socket.getOutputStream())
-                onInfo("Response was sent to answer ${it.request.startLine}", response, th2Response.eventId.id, uuid)
+                onInfo("Response ${response.statusCode} was sent to answer ${it.request.startLine}", response, th2Response.eventId.id, uuid)
                 if (!it.socket.keepAlive) {
                     LOGGER.debug { "Closing socket (${it.socket.inetAddress}) from UUID: $uuid due last response." }
                     it.socket.close()

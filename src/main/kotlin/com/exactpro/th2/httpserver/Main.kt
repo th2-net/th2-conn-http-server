@@ -35,10 +35,12 @@ import com.fasterxml.jackson.module.kotlin.KotlinModule
 import mu.KotlinLogging
 import rawhttp.core.HttpMessage
 import java.time.Instant
-import java.util.ServiceLoader
 import java.util.concurrent.ConcurrentLinkedDeque
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
+import java.util.ServiceLoader
+
+
 
 private val LOGGER = KotlinLogging.logger { }
 
@@ -93,9 +95,10 @@ class Main {
         ) {
             val connectionId = ConnectionID.newBuilder().setSessionAlias(settings.sessionAlias).build()
 
+
             val rootEventId = eventRouter.storeEvent(Event.start().apply {
                 endTimestamp()
-                name("HTTP server '${settings.sessionAlias}' ${Instant.now()}")
+                name("HTTP SERVER | alias: \"${settings.sessionAlias}\" | ${Instant.now()}")
                 type("Microservice")
             }).id
 
