@@ -62,4 +62,6 @@ interface ServerOptions {
      * @return response with specific changes or without them
      */
     fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>) = response
+
+    fun onResponse(response: RawHttpResponse<Th2Response>)
 }

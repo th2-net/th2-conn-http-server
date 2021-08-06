@@ -15,14 +15,14 @@
 package com.exactpro.th2.httpserver.server
 
 import com.exactpro.th2.common.event.Event
-import com.exactpro.th2.common.grpc.EventID
+import com.exactpro.th2.common.event.EventUtils
+import com.exactpro.th2.common.grpc.EventBatch
+import com.exactpro.th2.common.schema.message.MessageRouter
+import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
-import rawhttp.core.HttpVersion
-import rawhttp.core.RawHttp
-import rawhttp.core.RawHttpRequest
-import rawhttp.core.RawHttpResponse
+import rawhttp.core.*
 import rawhttp.core.body.BodyReader
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit
 private val LOGGER = KotlinLogging.logger { }
 
 internal class Th2HttpServer(
-    private val eventStore: ((String, String, eventId: EventID?, Throwable?) -> Event),
+    private val eventStore: (name: String, message: HttpMessage?, eventId: String?, uuid: String?, throwable: Throwable?)->Unit,
     private val options: ServerOptions,
     private val terminationTime: Long,
     socketDelayCheck: Long
@@ -57,18 +57,18 @@ internal class Th2HttpServer(
             while (listen) {
                 runCatching {
                     val client = socket.accept()
-                    onInfo("Connected client: ${client.inetAddress}", null)
+                    onInfo("Connected client: ${client.inetAddress}")
                     // thread waiting to accept socket before continue
                     executorService.submit { handle(client) }
                 }.onFailure {
                     if (listen) {
                         when (it) {
                             is SocketException -> {
-                                onError("Broken or closed socket!", null, it)
+                                onError("Broken or closed socket!", throwable = it)
                                 recreateSocket()
                             }
                             else -> {
-                                onError("Failed to accept client socket", null, it)
+                                onError("Failed to accept client socket", throwable= it)
                                 if (socket.isClosed) recreateSocket()
                             }
                         }
@@ -120,12 +120,12 @@ internal class Th2HttpServer(
 
                 client.keepAlive = !isClosing
                 dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client)
-                onInfo("Stored dialog: $uuid from socket: ${client.inetAddress} for request $requestEagerly", null)
+                onInfo("Stored dialog from socket: ${client.inetAddress}", message = requestEagerly, uuid = uuid)
             }.onFailure {
                 isClosing = true
                 when(it) {
-                    is SocketException -> onError("Socket closed", null, it)
-                    else -> onError("Failed to handle request. Socket is closed: ${!client.isConnected && client.isClosed}", null, it)
+                    is SocketException -> onError("Socket closed", throwable =  it)
+                    else -> onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", throwable =  it)
                 }
                 client.runCatching(Socket::close)
             }
@@ -134,7 +134,7 @@ internal class Th2HttpServer(
 
     fun handleResponse(response: RawHttpResponse<Th2Response>) {
         val th2Response: Th2Response = response.runCatching { libResponse.get() }.onFailure {
-            onError("Can't handle response without th2 information", null, it)
+            onError("Can't handle response without th2 information", throwable = it)
         }.getOrThrow()
         val uuid = th2Response.uuid
 
@@ -142,18 +142,18 @@ internal class Th2HttpServer(
             dialogManager.dialogues.remove(uuid)?.let {
                 val finalResponse = options.prepareResponse(it.request, response)
                 finalResponse.writeTo(it.socket.getOutputStream())
-                onInfo("Response with UUID: $uuid was sent to client\n$finalResponse\n", th2Response.eventId)
+                onInfo("Response was sent to client", response, th2Response.eventId.id, uuid)
                 if (!it.socket.keepAlive) {
-                    LOGGER.debug { "Response with UUID: $uuid was sent. Closing socket (${it.socket.inetAddress}) due last response." }
+                    LOGGER.debug { "Closing socket (${it.socket.inetAddress}) from UUID: $uuid due last response." }
                     it.socket.close()
                 }
             } ?: run {
-                throw NullPointerException("No matching client in store. $uuid")
+                throw NullPointerException("No matching client in store.")
             }
         }.onFailure {
             when (it) {
-                is SocketException -> onError("Failed to handle response with UUID: $uuid, socket is broken. Response: /n$response", th2Response.eventId, it)
-                else -> onError("Can't handle response with UUID: $uuid. Response: /n$response", th2Response.eventId, it)
+                is SocketException -> onError("Failed to handle response, socket is broken.", response, th2Response.eventId.id, uuid, it)
+                else -> onError("Can't handle response", response, th2Response.eventId.id, uuid, it)
             }
         }
         closeBodyOf(response)
@@ -183,17 +183,18 @@ internal class Th2HttpServer(
         }
     }
 
-    private fun onInfo(message: String, eventId: EventID?) {
-        LOGGER.info(message)
-        eventStore(message, "Passed", eventId, null)
+    private fun onInfo(name: String, message: HttpMessage? = null, eventId: String? = null, uuid: String? = null) {
+        eventStore(name, message, eventId, uuid, null)
+        LOGGER.info(name)
     }
 
-    private fun onError(msg: String, eventId: EventID?, throwable: Throwable?) {
-        eventStore(msg, "Error", eventId, throwable)
+    private fun onError(name: String, message: HttpMessage? = null, eventId: String? = null, uuid: String? = null, throwable: Throwable) {
+        eventStore(name, message, eventId, uuid, throwable)
+
         if (!listen) {
-            LOGGER.warn(throwable) { msg }
+            LOGGER.warn(throwable) { name }
         } else {
-            LOGGER.error(throwable) { msg }
+            LOGGER.error(throwable) { name }
         }
     }
 

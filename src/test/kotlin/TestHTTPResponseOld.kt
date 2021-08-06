@@ -26,7 +26,7 @@ class TestHTTPResponseOld {
     companion object {
         private val server = TestServerManager(false) {
             fail("Server must be without errors", it)
-        }
+                    }
 
         @BeforeAll
         @JvmStatic

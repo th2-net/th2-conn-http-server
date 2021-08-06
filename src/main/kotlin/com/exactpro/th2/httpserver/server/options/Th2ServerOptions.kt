@@ -16,10 +16,10 @@ package com.exactpro.th2.httpserver.server.options
 
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.grpc.ConnectionID
-import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
+import com.exactpro.th2.httpserver.Main.Companion.Settings
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.exactpro.th2.httpserver.util.toBatch
 import mu.KotlinLogging
@@ -40,14 +40,7 @@ import javax.net.ssl.SSLContext
 
 
 class Th2ServerOptions(
-    private val https: Boolean,
-    private val port: Int,
-    private val threads: Int,
-    private val keystorePass: String,
-    private val sslProtocol: String,
-    private val keystoreType: String,
-    private val keyManagerAlgorithm: String,
-    private val keystorePath: String,
+    private val settings: Settings,
     private val connectionID: ConnectionID,
     private val messageRouter: MessageRouter<MessageGroupBatch>
 ) : ServerOptions {
@@ -61,19 +54,19 @@ class Th2ServerOptions(
     private val generateSequenceResponse = sequenceGenerator()
 
     override fun createSocket(): ServerSocket {
-        return socketFactory.createServerSocket(port).apply { logger.info("Created server socket on port:${port}") }
+        return socketFactory.createServerSocket(settings.port).apply { logger.info("Created server socket on port:${settings.port}") }
     }
 
     private fun createFactory(): ServerSocketFactory {
-        if (https) {
-            val passphrase = keystorePass.toCharArray()
-            val ctx: SSLContext = SSLContext.getInstance(sslProtocol)
-            val kmf: KeyManagerFactory = KeyManagerFactory.getInstance(keyManagerAlgorithm)
-            val ks: KeyStore = KeyStore.getInstance(keystoreType)
-            if (keystorePath.isEmpty()) {
+        if (settings.https) {
+            val passphrase = settings.keystorePass.toCharArray()
+            val ctx: SSLContext = SSLContext.getInstance(settings.sslProtocol)
+            val kmf: KeyManagerFactory = KeyManagerFactory.getInstance(settings.keyManagerAlgorithm)
+            val ks: KeyStore = KeyStore.getInstance(settings.keystoreType)
+            if (settings.keystorePath.isEmpty()) {
                 this::class.java.classLoader.getResourceAsStream("defaultkeystore").use { ks.load(it, passphrase) }
             } else {
-                File(keystorePath).inputStream().use {
+                File(settings.keystorePath).inputStream().use {
                     ks.load(it, passphrase)
                 }
             }
@@ -87,7 +80,7 @@ class Th2ServerOptions(
 
     override fun createExecutorService(): ExecutorService {
         val threadCount = AtomicInteger(1)
-        return Executors.newFixedThreadPool(threads) { runnable: Runnable? ->
+        return Executors.newFixedThreadPool(settings.threads) { runnable: Runnable? ->
             Thread(runnable).apply {
                 isDaemon = true
                 name = "th2-http-server-${threadCount.incrementAndGet()}"
@@ -101,14 +94,18 @@ class Th2ServerOptions(
             request.toBatch(connectionID, generateSequenceRequest(), id, event.id),
             QueueAttribute.SECOND.toString()
         )
+
     }
 
     override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>): RawHttpResponse<Th2Response> {
+        return response
+    }
+
+    override fun onResponse(response: RawHttpResponse<Th2Response>) {
         messageRouter.sendAll(
-            response.toBatch(connectionID, generateSequenceResponse(), request),
+            response.toBatch(connectionID, generateSequenceResponse()),
             QueueAttribute.FIRST.toString()
         )
-        return response
     }
 
     private fun sequenceGenerator() = Instant.now().run {

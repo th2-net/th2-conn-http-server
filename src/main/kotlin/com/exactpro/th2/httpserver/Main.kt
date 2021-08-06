@@ -15,13 +15,14 @@
 package com.exactpro.th2.httpserver
 
 import com.exactpro.th2.common.event.Event
+import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.EventBatch
-import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageListener
 import com.exactpro.th2.common.schema.message.MessageRouter
+import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.common.schema.message.storeEvent
 import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.api.IResponseManager.ResponseManagerContext
@@ -32,6 +33,7 @@ import com.exactpro.th2.httpserver.util.toPrettyString
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import mu.KotlinLogging
+import rawhttp.core.HttpMessage
 import java.time.Instant
 import java.util.ServiceLoader
 import java.util.concurrent.ConcurrentLinkedDeque
@@ -98,25 +100,49 @@ class Main {
             }).id
 
             val options = Th2ServerOptions(
-                settings.https,
-                settings.port,
-                settings.threads,
-                settings.keystorePass,
-                settings.sslProtocol,
-                settings.keystoreType,
-                settings.keyManagerAlgorithm,
-                settings.keystorePath,
+                settings,
                 connectionId,
                 messageRouter
             )
 
-            val eventStore = { name: String, type: String, eventId: EventID?, error: Throwable? ->
+            val eventStore = { name: String, type: String, error: Throwable? ->
                 eventRouter.storeEvent(
-                    eventId?.id ?: rootEventId,
+                    rootEventId,
                     name,
                     type,
                     error
                 )
+            }
+
+            val serverEventStore = { name: String, message: HttpMessage?, eventId: String?, uuid: String?, throwable: Throwable? ->
+                val type = if (throwable != null) "Error" else "Info"
+                val status = if (throwable != null) Event.Status.FAILED else Event.Status.PASSED
+                val event = Event.start().apply {
+                    endTimestamp()
+                    name(name)
+                    type(type)
+                    status(status)
+
+                    var error = throwable
+
+                    while (error != null) {
+                        bodyData(EventUtils.createMessageBean(error.message))
+                        error = error.cause
+                    }
+
+                    uuid?.let {
+                        bodyData(EventUtils.createMessageBean("UUID: $uuid"))
+                    }
+                    message?.let {
+                        bodyData(EventUtils.createMessageBean(message.toString()))
+                    }
+                }.toProtoEvent(eventId ?: rootEventId)
+
+
+                event.apply {
+                    val batch = EventBatch.newBuilder().addEvents(event).build()
+                    eventRouter.send(batch, QueueAttribute.PUBLISH.toString(), QueueAttribute.EVENT.toString())
+                }
             }
 
 
@@ -124,7 +150,7 @@ class Main {
                 message.groupsList.forEach { group ->
                     group.runCatching(responseManager::handleResponse).recoverCatching {
                         LOGGER.error(it) { "Failed to handle message group: ${group.toPrettyString()}" }
-                        eventStore("Failed to handle message group: ${group.toPrettyString()}", "Error", null, it)
+                        eventStore("Failed to handle message group: ${group.toPrettyString()}", "Error", it)
                     }
                 }
             }
@@ -137,7 +163,7 @@ class Main {
                 throw IllegalStateException("Failed to subscribe to input queue", it)
             }
 
-            val server = Th2HttpServer(eventStore, options, settings.terminationTime, settings.socketDelayCheck).apply {
+            val server = Th2HttpServer(serverEventStore, options, settings.terminationTime, settings.socketDelayCheck).apply {
                 registerResource("server", ::stop)
             }
 
@@ -146,7 +172,7 @@ class Main {
                 init(ResponseManagerContext(server::handleResponse))
             }.onFailure {
                 LOGGER.error(it) { "Failed to init response-manager" }
-                eventStore("Failed to init response-manager", "Error", null, it)
+                eventStore("Failed to init response-manager", "Error", it)
                 throw it
             }
 

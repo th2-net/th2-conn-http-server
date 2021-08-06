@@ -15,8 +15,10 @@
 package testimpl
 
 import com.exactpro.th2.httpserver.server.options.ServerOptions
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
+import rawhttp.core.RawHttpResponse
 import java.net.ServerSocket
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ExecutorService
@@ -65,6 +67,10 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions {
 
     override fun onRequest(request: RawHttpRequest, id: String) {
         queue.add(id)
+    }
+
+    override fun onResponse(response: RawHttpResponse<Th2Response>) {
+
     }
 
 }

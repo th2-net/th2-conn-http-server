@@ -82,7 +82,7 @@ private fun ByteArrayOutputStream.toBatch(
     }
 }.toBatch()
 
-private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, uuid: String,  eventId: EventID): MessageGroupBatch {
+private fun RawHttpRequest.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, uuid: String,  eventId: EventID): MessageGroupBatch {
     val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString(), "uuid" to uuid) }
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
@@ -92,8 +92,9 @@ private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction
     }
 }
 
-private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, eventId: EventID): MessageGroupBatch {
-    val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString()) }
+private fun RawHttpResponse<Th2Response>.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long): MessageGroupBatch {
+    val metadataProperties = mapOf("http" to startLine.httpVersion.toString(), "code" to startLine.statusCode.toString(), "reason" to startLine.reason)
+    val eventId = this.libResponse.get().eventId
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
         headers.writeTo(this)
@@ -103,4 +104,4 @@ private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction
 }
 
 fun RawHttpRequest.toBatch(connectionId: ConnectionID, sequence: Long, id: String, eventId: EventID): MessageGroupBatch = toBatch(connectionId, SECOND, sequence, this, id, eventId)
-fun RawHttpResponse<Th2Response>.toBatch(connectionId: ConnectionID, sequence: Long, request: RawHttpRequest): MessageGroupBatch = toBatch(connectionId, FIRST, sequence, request, this.libResponse.get().eventId)
+fun RawHttpResponse<Th2Response>.toBatch(connectionId: ConnectionID, sequence: Long): MessageGroupBatch = toBatch(connectionId, FIRST, sequence)

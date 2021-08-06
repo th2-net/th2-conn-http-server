@@ -20,15 +20,13 @@ import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.addField
 import com.exactpro.th2.common.message.message
-import com.exactpro.th2.common.schema.message.storeEvent
 import com.exactpro.th2.httpserver.server.Th2HttpServer
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.google.protobuf.ByteString
 import mu.KotlinLogging
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.fail
-import rawhttp.core.HttpVersion
-import rawhttp.core.RawHttp
+import rawhttp.core.HttpMessage
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.client.TcpRawHttpClient
 import java.io.File
@@ -41,9 +39,10 @@ private val LOGGER = KotlinLogging.logger { }
 
 open class TestServerManager(private val https: Boolean = false, socketDelayCheck: Long = 15, onError: (e: Throwable) -> Unit) {
     private val options = TestServerOptions(https)
-    private val eventStore = { _: String, _: String, _: EventID?, error: Throwable? ->
+    private val eventStore = { _: String, _:HttpMessage?, _: String?, _: String?, error: Throwable? ->
         error?.let {
             onError(it)
+            LOGGER.warn(it) {}
         }
         Event.start()
     }
