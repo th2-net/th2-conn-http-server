@@ -123,6 +123,10 @@ class Main {
                     type(type)
                     status(status)
 
+                    uuid?.let {
+                        bodyData(EventUtils.createMessageBean("UUID: $uuid"))
+                    }
+
                     var error = throwable
 
                     while (error != null) {
@@ -130,9 +134,7 @@ class Main {
                         error = error.cause
                     }
 
-                    uuid?.let {
-                        bodyData(EventUtils.createMessageBean("UUID: $uuid"))
-                    }
+
                     message?.let {
                         bodyData(EventUtils.createMessageBean(message.toString()))
                     }

@@ -120,7 +120,7 @@ internal class Th2HttpServer(
 
                 client.keepAlive = !isClosing
                 dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client)
-                onInfo("Stored dialog from client: ${client.inetAddress}", message = requestEagerly, uuid = uuid)
+                onInfo("Received request: ${requestEagerly.startLine}", message = requestEagerly, uuid = uuid)
             }.onFailure {
                 isClosing = true
                 when(it) {
@@ -142,7 +142,7 @@ internal class Th2HttpServer(
             dialogManager.dialogues.remove(uuid)?.let {
                 val finalResponse = options.prepareResponse(it.request, response)
                 finalResponse.writeTo(it.socket.getOutputStream())
-                onInfo("Response was sent to client", response, th2Response.eventId.id, uuid)
+                onInfo("Response was sent to answer ${it.request.startLine}", response, th2Response.eventId.id, uuid)
                 if (!it.socket.keepAlive) {
                     LOGGER.debug { "Closing socket (${it.socket.inetAddress}) from UUID: $uuid due last response." }
                     it.socket.close()
@@ -184,19 +184,17 @@ internal class Th2HttpServer(
     }
 
     private fun onInfo(name: String, message: HttpMessage? = null, eventId: String? = null, uuid: String? = null) {
-        val info = "${uuid.orEmpty()} $name"
-        eventStore(info, message, eventId, uuid, null)
-        LOGGER.info(info)
+        eventStore(name, message, eventId, uuid, null)
+        LOGGER.info("${uuid.orEmpty()} $name")
         message?.toString().run(LOGGER::debug)
     }
 
     private fun onError(name: String, message: HttpMessage? = null, eventId: String? = null, uuid: String? = null, throwable: Throwable) {
-        val info = "${uuid.orEmpty()} $name"
-        eventStore(info, message, eventId, uuid, throwable)
+        eventStore(name, message, eventId, uuid, throwable)
         if (!listen) {
-            LOGGER.warn(throwable) { info }
+            LOGGER.warn(throwable) { "${uuid.orEmpty()} $name" }
         } else {
-            LOGGER.error(throwable) { info }
+            LOGGER.error(throwable) { "${uuid.orEmpty()} $name" }
         }
         message?.toString().run(LOGGER::debug)
     }
