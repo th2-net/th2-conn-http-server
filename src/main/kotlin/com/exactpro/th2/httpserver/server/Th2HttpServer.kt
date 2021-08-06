@@ -120,7 +120,7 @@ internal class Th2HttpServer(
 
                 client.keepAlive = !isClosing
                 dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client)
-                onInfo("Stored dialog from socket: ${client.inetAddress}", message = requestEagerly, uuid = uuid)
+                onInfo("Stored dialog from client: ${client.inetAddress}", message = requestEagerly, uuid = uuid)
             }.onFailure {
                 isClosing = true
                 when(it) {
@@ -185,17 +185,18 @@ internal class Th2HttpServer(
 
     private fun onInfo(name: String, message: HttpMessage? = null, eventId: String? = null, uuid: String? = null) {
         eventStore(name, message, eventId, uuid, null)
-        LOGGER.info(name)
+        LOGGER.info("${uuid.orEmpty()} $name")
+        message?.toString().run(LOGGER::debug)
     }
 
     private fun onError(name: String, message: HttpMessage? = null, eventId: String? = null, uuid: String? = null, throwable: Throwable) {
         eventStore(name, message, eventId, uuid, throwable)
-
         if (!listen) {
-            LOGGER.warn(throwable) { name }
+            LOGGER.warn(throwable) { "${uuid.orEmpty()} $name" }
         } else {
-            LOGGER.error(throwable) { name }
+            LOGGER.error(throwable) { "${uuid.orEmpty()} $name" }
         }
+        message?.toString().run(LOGGER::debug)
     }
 
     private fun ExecutorService.awaitShutdown(terminationTime: Long, onTimeout: () -> Unit) {
