@@ -57,7 +57,7 @@ internal class Th2HttpServer(
             while (listen) {
                 runCatching {
                     val client = socket.accept()
-                    onInfo("Connected client: ${client.inetAddress}")
+                    onInfo("Connected client: $client")
                     // thread waiting to accept socket before continue
                     executorService.submit { handle(client) }
                 }.onFailure {
@@ -124,7 +124,7 @@ internal class Th2HttpServer(
             }.onFailure {
                 isClosing = true
                 when(it) {
-                    is SocketException -> onError("Socket closed", throwable =  it)
+                    is SocketException -> onError("Socket closed: $socket", throwable =  it)
                     else -> onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", throwable =  it)
                 }
                 client.runCatching(Socket::close)
@@ -152,7 +152,7 @@ internal class Th2HttpServer(
             }
         }.onFailure {
             when (it) {
-                is SocketException -> onError("Failed to handle response, socket is broken.", response, th2Response.eventId.id, uuid, it)
+                is SocketException -> onError("Failed to handle response, socket is broken. $socket", response, th2Response.eventId.id, uuid, it)
                 else -> onError("Can't handle response", response, th2Response.eventId.id, uuid, it)
             }
         }
