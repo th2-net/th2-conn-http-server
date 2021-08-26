@@ -18,6 +18,7 @@ import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.Message
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.grpc.MessageGroup
+import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.message.getInt
 import com.exactpro.th2.common.message.getList
 import com.exactpro.th2.common.message.getString
@@ -49,7 +50,7 @@ private const val REASON_PROPERTY = HEADERS_REASON_FIELD
 private const val DEFAULT_CODE = 200
 private const val DEFAULT_REASON = "OK"
 
-data class Th2Response(val uuid: String, val eventId: EventID) {
+data class Th2Response(val uuid: String, val eventId: EventID, val messagesId: List<MessageID>) {
     class Builder {
         private val metadata = hashMapOf<String, String>()
 
@@ -129,8 +130,11 @@ data class Th2Response(val uuid: String, val eventId: EventID) {
             }
             val uuid = head.metadata.propertiesMap["uuid"] ?: body.metadata.propertiesMap["uuid"]
             checkNotNull(uuid) { "UUID is required" }
+
+            val messagesId = listOf(head.metadata.id, body.metadata.id)
+
             return RawHttpResponse<Th2Response>(
-                Th2Response(uuid, eventId),
+                Th2Response(uuid, eventId, messagesId),
                 null,
                 statusLine,
                 httpHeaders.build(),

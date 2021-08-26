@@ -21,6 +21,7 @@ import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.io.IOException
 import java.net.ServerSocket
+import java.net.Socket
 import java.util.concurrent.ExecutorService
 import javax.annotation.concurrent.ThreadSafe
 
@@ -54,7 +55,7 @@ interface ServerOptions {
      * Must be guaranteed to be thread-safe since it will be called from different threads
      *
      */
-    fun onRequest(request: RawHttpRequest, id: String) = Unit
+    fun onRequest(request: RawHttpRequest, uuid: String, eventId: String)
 
     /**
      * Must be guaranteed to be thread-safe since it will be called from different threads
@@ -64,4 +65,6 @@ interface ServerOptions {
     fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>) = response
 
     fun onResponse(response: RawHttpResponse<Th2Response>)
+
+    fun onConnect(client: Socket) : String
 }

@@ -39,12 +39,12 @@ private val LOGGER = KotlinLogging.logger { }
 
 open class TestServerManager(private val https: Boolean = false, socketDelayCheck: Long = 15, onError: (e: Throwable) -> Unit) {
     private val options = TestServerOptions(https)
-    private val eventStore = { _: String, _:HttpMessage?, _: String?, _: String?, error: Throwable? ->
+    private val eventStore = { _: String, _: String?, error: Throwable? ->
         error?.let {
             onError(it)
             LOGGER.warn(it) {}
         }
-        Event.start()
+        Event.start().id
     }
     private val th2server = Th2HttpServer(eventStore, options, 5, socketDelayCheck)
 

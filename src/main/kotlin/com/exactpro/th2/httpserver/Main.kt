@@ -104,6 +104,8 @@ class Main {
 
             val options = Th2ServerOptions(
                 settings,
+                eventRouter,
+                rootEventId,
                 connectionId,
                 messageRouter
             )
@@ -117,7 +119,7 @@ class Main {
                 )
             }
 
-            val serverEventStore = { name: String, message: HttpMessage?, eventId: String?, uuid: String?, throwable: Throwable? ->
+            val serverEventStore = { name: String, eventId: String?, throwable: Throwable? ->
                 val type = if (throwable != null) "Error" else "Info"
                 val status = if (throwable != null) Event.Status.FAILED else Event.Status.PASSED
                 val event = Event.start().apply {
@@ -126,28 +128,17 @@ class Main {
                     type(type)
                     status(status)
 
-                    uuid?.let {
-                        bodyData(EventUtils.createMessageBean("UUID: $uuid"))
-                    }
-
                     var error = throwable
 
                     while (error != null) {
                         bodyData(EventUtils.createMessageBean(error.message))
                         error = error.cause
                     }
-
-
-                    message?.let {
-                        bodyData(EventUtils.createMessageBean(message.toString()))
-                    }
                 }.toProtoEvent(eventId ?: rootEventId)
 
-
-                event.apply {
-                    val batch = EventBatch.newBuilder().addEvents(event).build()
-                    eventRouter.send(batch, QueueAttribute.PUBLISH.toString(), QueueAttribute.EVENT.toString())
-                }
+                val batch = EventBatch.newBuilder().addEvents(event).build()
+                eventRouter.send(batch, QueueAttribute.PUBLISH.toString(), QueueAttribute.EVENT.toString())
+                event.id.id
             }
 
 

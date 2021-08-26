@@ -14,11 +14,6 @@
 
 package com.exactpro.th2.httpserver.server
 
-import com.exactpro.th2.common.event.Event
-import com.exactpro.th2.common.event.EventUtils
-import com.exactpro.th2.common.grpc.EventBatch
-import com.exactpro.th2.common.schema.message.MessageRouter
-import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
@@ -36,7 +31,7 @@ import java.util.concurrent.TimeUnit
 private val LOGGER = KotlinLogging.logger { }
 
 internal class Th2HttpServer(
-    private val eventStore: (name: String, message: HttpMessage?, eventId: String?, uuid: String?, throwable: Throwable?)->Unit,
+    private val eventStore: (name: String, eventId: String?, throwable: Throwable?)->String,
     private val options: ServerOptions,
     private val terminationTime: Long,
     socketDelayCheck: Long
@@ -50,16 +45,14 @@ internal class Th2HttpServer(
     private val additionalExecutors: ExecutorService = options.createExecutorService()
     private val http: RawHttp = options.getRawHttp()
 
-
-
     override fun start() {
         Thread({
             while (listen) {
                 runCatching {
                     val client = socket.accept()
-                    onInfo("Connected client: $client")
+                    val eventId = options.onConnect(client)
                     // thread waiting to accept socket before continue
-                    executorService.submit { handle(client) }
+                    executorService.submit { handle(client, eventId) }
                 }.onFailure {
                     if (listen) {
                         when (it) {
@@ -90,7 +83,7 @@ internal class Th2HttpServer(
      * https://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01#Connection
      * Please use it as reference in discussions and logic reworks
      */
-    private fun handle(client: Socket) {
+    private fun handle(client: Socket, parentEventId: String) {
         var request: RawHttpRequest
         var isClosing = false
         while (!isClosing) {
@@ -102,7 +95,9 @@ internal class Th2HttpServer(
                 val uuid = UUID.randomUUID().toString()
                 val requestEagerly = request.eagerly().apply { LOGGER.debug("Received request: \n$this\nGenerated UUID: $uuid") }
 
-                additionalExecutors.submit { options.onRequest(requestEagerly, uuid) }
+                additionalExecutors.submit {
+                    options.onRequest(requestEagerly, uuid, parentEventId)
+                }
 
                 when(request.startLine.httpVersion) {
                     HttpVersion.HTTP_1_1 -> {
@@ -120,12 +115,12 @@ internal class Th2HttpServer(
 
                 client.keepAlive = !isClosing
                 dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client)
-                onInfo("Received request: ${requestEagerly.startLine}", message = requestEagerly, uuid = uuid)
+
             }.onFailure {
                 isClosing = true
                 when(it) {
-                    is SocketException -> onError("Socket closed: $socket", throwable =  it)
-                    else -> onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", throwable =  it)
+                    is SocketException -> onError("Socket closed: $socket",  parentEventId, it)
+                    else -> onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", parentEventId, it)
                 }
                 client.runCatching(Socket::close)
             }
@@ -142,7 +137,9 @@ internal class Th2HttpServer(
             dialogManager.dialogues.remove(uuid)?.let {
                 val finalResponse = options.prepareResponse(it.request, response)
                 finalResponse.writeTo(it.socket.getOutputStream())
-                onInfo("Response ${response.statusCode} was sent to answer ${it.request.startLine}", response, th2Response.eventId.id, uuid)
+
+                options.onResponse(finalResponse)
+
                 if (!it.socket.keepAlive) {
                     LOGGER.debug { "Closing socket (${it.socket.inetAddress}) from UUID: $uuid due last response." }
                     it.socket.close()
@@ -152,8 +149,8 @@ internal class Th2HttpServer(
             }
         }.onFailure {
             when (it) {
-                is SocketException -> onError("Failed to handle response, socket is broken. $socket", response, th2Response.eventId.id, uuid, it)
-                else -> onError("Can't handle response", response, th2Response.eventId.id, uuid, it)
+                is SocketException -> onError("Failed to handle response uuid: $uuid, socket is broken. $socket", th2Response.eventId.id, it)
+                else -> onError("Can't handle response uuid: $uuid", th2Response.eventId.id, it)
             }
         }
         closeBodyOf(response)
@@ -183,20 +180,18 @@ internal class Th2HttpServer(
         }
     }
 
-    private fun onInfo(name: String, message: HttpMessage? = null, eventId: String? = null, uuid: String? = null) {
-        eventStore(name, message, eventId, uuid, null)
-        LOGGER.info("${uuid.orEmpty()} $name")
-        message?.toString().run(LOGGER::debug)
+    private fun onInfo(name: String, eventId: String? = null) : String {
+        LOGGER.info(name)
+        return eventStore (name, eventId, null)
     }
 
-    private fun onError(name: String, message: HttpMessage? = null, eventId: String? = null, uuid: String? = null, throwable: Throwable) {
-        eventStore(name, message, eventId, uuid, throwable)
+    private fun onError(name: String, eventId: String? = null, throwable: Throwable)  : String {
         if (!listen) {
-            LOGGER.warn(throwable) { "${uuid.orEmpty()} $name" }
+            LOGGER.warn(throwable) { name }
         } else {
-            LOGGER.error(throwable) { "${uuid.orEmpty()} $name" }
+            LOGGER.error(throwable) { name }
         }
-        message?.toString().run(LOGGER::debug)
+        return eventStore (name, eventId, throwable)
     }
 
     private fun ExecutorService.awaitShutdown(terminationTime: Long, onTimeout: () -> Unit) {

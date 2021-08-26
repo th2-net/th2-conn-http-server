@@ -15,18 +15,23 @@
 package com.exactpro.th2.httpserver.server.options
 
 import com.exactpro.th2.common.event.Event
+import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.ConnectionID
+import com.exactpro.th2.common.grpc.EventBatch
 import com.exactpro.th2.common.grpc.MessageGroupBatch
+import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.httpserver.Main.Companion.Settings
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.exactpro.th2.httpserver.util.toBatch
+import com.exactpro.th2.httpserver.util.toRawMessage
 import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.io.File
 import java.net.ServerSocket
+import java.net.Socket
 import java.security.KeyStore
 import java.time.Instant
 import java.util.concurrent.ExecutorService
@@ -41,6 +46,8 @@ import javax.net.ssl.SSLContext
 
 class Th2ServerOptions(
     private val settings: Settings,
+    private val eventRouter: MessageRouter<EventBatch>,
+    private val rootEventID: String,
     private val connectionID: ConnectionID,
     private val messageRouter: MessageRouter<MessageGroupBatch>
 ) : ServerOptions {
@@ -88,27 +95,66 @@ class Th2ServerOptions(
         }
     }
 
-    override fun onRequest(request: RawHttpRequest, id: String) {
+    override fun onRequest(request: RawHttpRequest, uuid: String, eventId: String) {
         val event = Event.start().endTimestamp().toProto(null)
+
+        val rawMessage = request.toRawMessage(connectionID, generateSequenceRequest(), uuid, event.id)
+
         messageRouter.sendAll(
-            request.toBatch(connectionID, generateSequenceRequest(), id, event.id),
+            rawMessage.toBatch(),
             QueueAttribute.SECOND.toString()
         )
 
+        eventRouter.storeEvent("Received HTTP request", eventId, uuid, rawMessage.metadata.id)
     }
+
+
 
     override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>): RawHttpResponse<Th2Response> {
         return response
     }
 
-    override fun onResponse(response: RawHttpResponse<Th2Response>) {
+    override fun onResponse(response: RawHttpResponse<Th2Response>)  {
+        val rawMessage = response.toRawMessage(connectionID, generateSequenceResponse())
+
         messageRouter.sendAll(
-            response.toBatch(connectionID, generateSequenceResponse()),
+            rawMessage.toBatch(),
             QueueAttribute.FIRST.toString()
         )
+        val th2Response = response.libResponse.get()
+        eventRouter.storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, rawMessage.metadata.id)
+    }
+
+    override fun onConnect(client: Socket) : String {
+        return eventRouter.storeEvent("Connected client: $client", rootEventID, null)
     }
 
     private fun sequenceGenerator() = Instant.now().run {
         AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
     }::incrementAndGet
+
+    private fun MessageRouter<EventBatch>.storeEvent(name: String, eventId: String, uuid: String?, vararg messagesId : MessageID) : String {
+        val type = "Info"
+        val status = Event.Status.PASSED
+        val event = Event.start().apply {
+            endTimestamp()
+            name(name)
+            type(type)
+            status(status)
+
+            uuid?.let { id->
+                bodyData(EventUtils.createMessageBean("UUID: $id"))
+            }
+
+            messagesId.forEach(this::messageID)
+        }.toProtoEvent(eventId)
+
+
+        event.apply {
+            val batch = EventBatch.newBuilder().addEvents(event).build()
+            send(batch, QueueAttribute.PUBLISH.toString(), QueueAttribute.EVENT.toString())
+        }
+
+        return event.id.id
+    }
 }
