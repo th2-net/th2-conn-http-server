@@ -65,10 +65,10 @@ private fun ByteArrayOutputStream.toRawMessage(
     direction: Direction,
     sequence: Long,
     metadataProperties: Map<String, String>,
-    eventId: EventID
+    eventId: String
 ) = RawMessage.newBuilder().apply {
     this.body = ByteString.copyFrom(toByteArray())
-    this.parentEventId = eventId
+    this.parentEventIdBuilder.id = eventId
     this.metadataBuilder {
         putAllProperties(metadataProperties)
         this.timestamp = Instant.now().toTimestamp()
@@ -80,7 +80,7 @@ private fun ByteArrayOutputStream.toRawMessage(
     }
 }.build()
 
-private fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, uuid: String, eventId: EventID): RawMessage {
+private fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, uuid: String, eventId: String): RawMessage {
     val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString(), "uuid" to uuid) }
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
@@ -92,7 +92,7 @@ private fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, direction: D
 
 private fun RawHttpResponse<Th2Response>.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long): RawMessage {
     val metadataProperties = mapOf("http" to startLine.httpVersion.toString(), "code" to startLine.statusCode.toString(), "reason" to startLine.reason)
-    val eventId = this.libResponse.get().eventId
+    val eventId = this.libResponse.get().eventId.id
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
         headers.writeTo(this)
@@ -101,5 +101,5 @@ private fun RawHttpResponse<Th2Response>.toRawMessage(connectionId: ConnectionID
     }
 }
 
-fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, sequence: Long, uuid: String, eventId: EventID): RawMessage = toRawMessage(connectionId, SECOND, sequence, this, uuid, eventId)
+fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, sequence: Long, uuid: String, eventId: String): RawMessage = toRawMessage(connectionId, SECOND, sequence, this, uuid, eventId)
 fun RawHttpResponse<Th2Response>.toRawMessage(connectionId: ConnectionID, sequence: Long): RawMessage = toRawMessage(connectionId, FIRST, sequence)

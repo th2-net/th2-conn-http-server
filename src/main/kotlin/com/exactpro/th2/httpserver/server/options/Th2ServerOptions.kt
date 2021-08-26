@@ -96,18 +96,17 @@ class Th2ServerOptions(
         }
     }
 
-    override fun onRequest(request: RawHttpRequest, uuid: String, eventId: String) {
-        val event = Event.start().endTimestamp().toProto(null)
-
-        val rawMessage = request.toRawMessage(connectionID, generateSequenceRequest(), uuid, event.id)
+    override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) {
+        val rawMessage = request.toRawMessage(connectionID, generateSequenceRequest(), uuid, parentEventID)
 
         messageRouter.sendAll(
             rawMessage.toBatch(),
             QueueAttribute.SECOND.toString()
         )
 
-        val eventId = eventRouter.storeEvent("Received HTTP request", eventId, uuid, rawMessage.metadata.id)
-        logger.info { "$eventId: Received HTTP request: \n$request" }
+        eventRouter.storeEvent("Received HTTP request", parentEventID, uuid, listOf(rawMessage.metadata.id))
+
+        logger.info { "$parentEventID: Received HTTP request: \n$request" }
     }
 
 
@@ -125,7 +124,7 @@ class Th2ServerOptions(
         )
 
         val th2Response = response.libResponse.get()
-        val eventId = eventRouter.storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, rawMessage.metadata.id)
+        val eventId = eventRouter.storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, th2Response.messagesId)
         logger.info { "$eventId: Sent HTTP response: \n$response" }
     }
 
@@ -141,7 +140,7 @@ class Th2ServerOptions(
         AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
     }::incrementAndGet
 
-    private fun MessageRouter<EventBatch>.storeEvent(name: String, eventId: String, uuid: String?, vararg messagesId : MessageID) : String {
+    private fun MessageRouter<EventBatch>.storeEvent(name: String, eventId: String, uuid: String?, messagesId: List<MessageID>? = null) : String {
         val type = if (uuid!=null) "Info" else "Connection"
         val status = Event.Status.PASSED
         val event = Event.start().apply {
@@ -154,7 +153,7 @@ class Th2ServerOptions(
                 bodyData(EventUtils.createMessageBean("UUID: $id"))
             }
 
-            messagesId.forEach(this::messageID)
+            messagesId?.forEach(this::messageID)
         }
 
         storeEvent(event, eventId)

@@ -14,6 +14,7 @@
 
 package testimpl
 
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
@@ -66,7 +67,7 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions {
         }
     }
 
-    override fun onRequest(request: RawHttpRequest, uuid: String, eventId: String) {
+    override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) {
         queue.add(uuid)
     }
 

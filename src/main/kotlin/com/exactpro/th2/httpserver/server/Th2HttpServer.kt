@@ -14,10 +14,14 @@
 
 package com.exactpro.th2.httpserver.server
 
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
-import rawhttp.core.*
+import rawhttp.core.HttpVersion
+import rawhttp.core.RawHttp
+import rawhttp.core.RawHttpRequest
+import rawhttp.core.RawHttpResponse
 import rawhttp.core.body.BodyReader
 import java.io.IOException
 import java.net.InetSocketAddress

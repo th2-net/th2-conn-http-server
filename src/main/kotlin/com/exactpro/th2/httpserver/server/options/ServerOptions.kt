@@ -55,7 +55,7 @@ interface ServerOptions {
      * Must be guaranteed to be thread-safe since it will be called from different threads
      *
      */
-    fun onRequest(request: RawHttpRequest, uuid: String, eventId: String)
+    fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String)
 
     /**
      * Must be guaranteed to be thread-safe since it will be called from different threads
