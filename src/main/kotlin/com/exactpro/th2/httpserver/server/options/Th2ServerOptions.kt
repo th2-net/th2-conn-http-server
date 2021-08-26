@@ -105,8 +105,8 @@ class Th2ServerOptions(
             QueueAttribute.SECOND.toString()
         )
 
-        eventRouter.storeEvent("Received HTTP request", eventId, uuid, rawMessage.metadata.id)
-        logger.info { "\"Received HTTP request: \n$request" }
+        val eventId = eventRouter.storeEvent("Received HTTP request", eventId, uuid, rawMessage.metadata.id)
+        logger.info { "$eventId: Received HTTP request: \n$request" }
     }
 
 
@@ -124,14 +124,16 @@ class Th2ServerOptions(
         )
 
         val th2Response = response.libResponse.get()
-        eventRouter.storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, rawMessage.metadata.id)
-        logger.info { "Sent HTTP response: \n$response" }
+        val eventId = eventRouter.storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, rawMessage.metadata.id)
+        logger.info { "$eventId: Sent HTTP response: \n$response" }
     }
 
     override fun onConnect(client: Socket) : String {
         val msg = "Connected client: $client"
-        logger.info { msg }
-        return eventRouter.storeEvent(msg, rootEventID, null)
+
+        val eventId = eventRouter.storeEvent(msg, rootEventID, null)
+        logger.info { "$eventId: $msg" }
+        return eventId
     }
 
     private fun sequenceGenerator() = Instant.now().run {

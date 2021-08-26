@@ -182,9 +182,9 @@ internal class Th2HttpServer(
 
     private fun onError(name: String, eventId: String? = null, throwable: Throwable) : String {
         if (!listen) {
-            LOGGER.warn(throwable) { name }
+            LOGGER.warn(throwable) { "$eventId: $name"  }
         } else {
-            LOGGER.error(throwable) { name }
+            LOGGER.error(throwable) { "$eventId: $name" }
         }
         return eventStore (name, eventId, throwable)
     }
