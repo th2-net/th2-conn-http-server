@@ -93,7 +93,7 @@ internal class Th2HttpServer(
                     (client.remoteSocketAddress as InetSocketAddress).address
                 )
                 val uuid = UUID.randomUUID().toString()
-                val requestEagerly = request.eagerly().apply { LOGGER.debug("Received request: \n$this\nGenerated UUID: $uuid") }
+                val requestEagerly = request.eagerly()
 
                 additionalExecutors.submit {
                     options.onRequest(requestEagerly, uuid, parentEventId)
@@ -180,12 +180,7 @@ internal class Th2HttpServer(
         }
     }
 
-    private fun onInfo(name: String, eventId: String? = null) : String {
-        LOGGER.info(name)
-        return eventStore (name, eventId, null)
-    }
-
-    private fun onError(name: String, eventId: String? = null, throwable: Throwable)  : String {
+    private fun onError(name: String, eventId: String? = null, throwable: Throwable) : String {
         if (!listen) {
             LOGGER.warn(throwable) { name }
         } else {
