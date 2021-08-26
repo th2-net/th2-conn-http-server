@@ -134,11 +134,9 @@ class Main {
                         bodyData(EventUtils.createMessageBean(error.message))
                         error = error.cause
                     }
-                }.toProtoEvent(eventId ?: rootEventId)
+                }
 
-                val batch = EventBatch.newBuilder().addEvents(event).build()
-                eventRouter.send(batch, QueueAttribute.PUBLISH.toString(), QueueAttribute.EVENT.toString())
-                event.id.id
+                eventRouter.storeEvent(event, eventId ?: rootEventId).id
             }
 
 

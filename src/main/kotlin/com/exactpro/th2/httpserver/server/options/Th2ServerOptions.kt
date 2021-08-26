@@ -22,6 +22,7 @@ import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
+import com.exactpro.th2.common.schema.message.storeEvent
 import com.exactpro.th2.httpserver.Main.Companion.Settings
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.exactpro.th2.httpserver.util.toBatch
@@ -141,7 +142,7 @@ class Th2ServerOptions(
     }::incrementAndGet
 
     private fun MessageRouter<EventBatch>.storeEvent(name: String, eventId: String, uuid: String?, vararg messagesId : MessageID) : String {
-        val type = "Info"
+        val type = if (uuid!=null) "Info" else "Connection"
         val status = Event.Status.PASSED
         val event = Event.start().apply {
             endTimestamp()
@@ -154,14 +155,10 @@ class Th2ServerOptions(
             }
 
             messagesId.forEach(this::messageID)
-        }.toProtoEvent(eventId)
-
-
-        event.apply {
-            val batch = EventBatch.newBuilder().addEvents(event).build()
-            send(batch, QueueAttribute.PUBLISH.toString(), QueueAttribute.EVENT.toString())
         }
 
-        return event.id.id
+        storeEvent(event, eventId)
+
+        return event.id
     }
 }
