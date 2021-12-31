@@ -14,7 +14,6 @@
 
 package com.exactpro.th2.httpserver.server
 
-import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
@@ -31,8 +30,6 @@ import java.net.SocketException
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
-
-private val LOGGER = KotlinLogging.logger { }
 
 internal class Th2HttpServer(
     private val eventStore: (name: String, eventId: String?, throwable: Throwable?)->String,
@@ -204,6 +201,10 @@ internal class Th2HttpServer(
             onTimeout()
         }
 
+    }
+
+    companion object {
+        private val LOGGER = KotlinLogging.logger { }
     }
 
 }

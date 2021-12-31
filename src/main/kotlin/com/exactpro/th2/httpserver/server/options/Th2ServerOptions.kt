@@ -45,13 +45,7 @@ import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 
 
-class Th2ServerOptions(
-    private val settings: Settings,
-    private val eventRouter: MessageRouter<EventBatch>,
-    private val rootEventID: String,
-    private val connectionID: ConnectionID,
-    private val messageRouter: MessageRouter<MessageGroupBatch>
-) : ServerOptions {
+class Th2ServerOptions(private val settings: Settings, private val eventRouter: MessageRouter<EventBatch>, private val rootEventID: String, private val connectionID: ConnectionID, private val messageRouter: MessageRouter<MessageGroupBatch>) : ServerOptions {
 
     private val socketFactory: ServerSocketFactory = createFactory()
 
@@ -99,10 +93,7 @@ class Th2ServerOptions(
     override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) {
         val rawMessage = request.toRawMessage(connectionID, generateSequenceRequest(), uuid, parentEventID)
 
-        messageRouter.sendAll(
-            rawMessage.toBatch(),
-            QueueAttribute.SECOND.toString()
-        )
+        messageRouter.sendAll(rawMessage.toBatch(), QueueAttribute.SECOND.toString())
 
         eventRouter.storeEvent("Received HTTP request", parentEventID, uuid, listOf(rawMessage.metadata.id))
 
@@ -110,27 +101,22 @@ class Th2ServerOptions(
     }
 
 
-
     override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>): RawHttpResponse<Th2Response> {
         return response
     }
 
-    override fun onResponse(response: RawHttpResponse<Th2Response>)  {
+    override fun onResponse(response: RawHttpResponse<Th2Response>) {
         val rawMessage = response.toRawMessage(connectionID, generateSequenceResponse())
 
-        messageRouter.sendAll(
-            rawMessage.toBatch(),
-            QueueAttribute.FIRST.toString()
-        )
+        messageRouter.sendAll(rawMessage.toBatch(), QueueAttribute.FIRST.toString())
 
         val th2Response = response.libResponse.get()
         val eventId = eventRouter.storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, th2Response.messagesId)
         logger.info { "$eventId: Sent HTTP response: \n$response" }
     }
 
-    override fun onConnect(client: Socket) : String {
+    override fun onConnect(client: Socket): String {
         val msg = "Connected client: $client"
-
         val eventId = eventRouter.storeEvent(msg, rootEventID, null)
         logger.info { "$eventId: $msg" }
         return eventId
@@ -140,8 +126,8 @@ class Th2ServerOptions(
         AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
     }::incrementAndGet
 
-    private fun MessageRouter<EventBatch>.storeEvent(name: String, eventId: String, uuid: String?, messagesId: List<MessageID>? = null) : String {
-        val type = if (uuid!=null) "Info" else "Connection"
+    private fun MessageRouter<EventBatch>.storeEvent(name: String, eventId: String, uuid: String?, messagesId: List<MessageID>? = null): String {
+        val type = if (uuid != null) "Info" else "Connection"
         val status = Event.Status.PASSED
         val event = Event.start().apply {
             endTimestamp()
@@ -149,10 +135,7 @@ class Th2ServerOptions(
             type(type)
             status(status)
 
-            uuid?.let { id->
-                bodyData(EventUtils.createMessageBean("UUID: $id"))
-            }
-
+            uuid?.let { bodyData(EventUtils.createMessageBean("UUID: $it")) }
             messagesId?.forEach(this::messageID)
         }
 

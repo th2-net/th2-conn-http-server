@@ -58,19 +58,17 @@ data class Th2Response(val uuid: String, val eventId: EventID, val messagesId: L
         private var body: RawMessage = RawMessage.getDefaultInstance()
         private lateinit var eventId: EventID
 
-        fun setHead(message: Message): Builder {
-            this.head = message.requireType(RESPONSE_MESSAGE)
+        fun setHead(message: Message) = apply {
+            head = message.requireType(RESPONSE_MESSAGE)
             eventId = message.parentEventId
-            return this
         }
 
-        fun setBody(message: RawMessage): Builder {
+        fun setBody(message: RawMessage) = apply {
             eventId = message.parentEventId
-            this.body = message
-            return this
+            body = message
         }
 
-        fun setGroup(messages: MessageGroup): Builder {
+        fun setGroup(messages: MessageGroup) = apply {
             when (messages.messagesCount) {
                 0 -> error("Message group is empty")
                 1 -> messages.getMessages(0).run {
@@ -97,13 +95,12 @@ data class Th2Response(val uuid: String, val eventId: EventID, val messagesId: L
                 }
                 else -> error("Message group contains more than 2 messages")
             }
-            return this
         }
 
         fun build(): RawHttpResponse<Th2Response> {
             metadata.putAll(body.metadata.propertiesMap)
 
-            require(this::eventId.isInitialized) {"EventID must be initialized!"}
+            require(this::eventId.isInitialized) { "EventID must be initialized!" }
 
             val code: Int = head.getInt(HEADERS_CODE_FIELD) ?: metadata[CODE_PROPERTY]?.toInt() ?: DEFAULT_CODE
             val reason = head.getString(HEADERS_REASON_FIELD) ?: metadata[REASON_PROPERTY] ?: DEFAULT_REASON
@@ -133,13 +130,7 @@ data class Th2Response(val uuid: String, val eventId: EventID, val messagesId: L
 
             val messagesId = listOf(head.metadata.id, body.metadata.id)
 
-            return RawHttpResponse<Th2Response>(
-                Th2Response(uuid, eventId, messagesId),
-                null,
-                statusLine,
-                httpHeaders.build(),
-                EagerBodyReader(httpBody)
-            )
+            return RawHttpResponse<Th2Response>(Th2Response(uuid, eventId, messagesId), null, statusLine, httpHeaders.build(), EagerBodyReader(httpBody))
         }
 
     }
