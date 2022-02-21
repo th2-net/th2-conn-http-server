@@ -14,9 +14,11 @@
 
 package com.exactpro.th2.httpserver.server.responses
 
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.Message
-import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.RawMessage
+import com.exactpro.th2.common.grpc.MessageGroup
+import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.message.getInt
 import com.exactpro.th2.common.message.getList
 import com.exactpro.th2.common.message.getString
@@ -48,24 +50,30 @@ private const val REASON_PROPERTY = HEADERS_REASON_FIELD
 private const val DEFAULT_CODE = 200
 private const val DEFAULT_REASON = "OK"
 
-data class Th2Response(val uuid: String) {
+data class Th2Response(val uuid: String, val eventId: EventID, val messagesId: List<MessageID>) {
     class Builder {
         private val metadata = hashMapOf<String, String>()
 
         private var head: Message = Message.getDefaultInstance()
         private var body: RawMessage = RawMessage.getDefaultInstance()
+        private var eventId: EventID = EventID.getDefaultInstance()
 
-        fun setHead(message: Message): Builder {
-            this.head = message.requireType(RESPONSE_MESSAGE)
-            return this
+        fun setHead(message: Message) = apply {
+            head = message.requireType(RESPONSE_MESSAGE)
+            if (message.hasParentEventId()) {
+                eventId = message.parentEventId
+            }
+
         }
 
-        fun setBody(message: RawMessage): Builder {
-            this.body = message
-            return this
+        fun setBody(message: RawMessage) = apply {
+            body = message
+            if (message.hasParentEventId()) {
+                eventId = message.parentEventId
+            }
         }
 
-        fun setGroup(messages: MessageGroup): Builder {
+        fun setGroup(messages: MessageGroup) = apply {
             when (messages.messagesCount) {
                 0 -> error("Message group is empty")
                 1 -> messages.getMessages(0).run {
@@ -81,7 +89,6 @@ data class Th2Response(val uuid: String) {
                 }
                 else -> error("Message group contains more than 2 messages")
             }
-            return this
         }
 
         fun build(): RawHttpResponse<Th2Response> {
@@ -112,8 +119,11 @@ data class Th2Response(val uuid: String) {
             }
             val uuid = head.metadata.propertiesMap["uuid"] ?: body.metadata.propertiesMap["uuid"]
             checkNotNull(uuid) { "UUID is required" }
+
+            val messagesId = listOf(head.metadata.id, body.metadata.id)
+
             return RawHttpResponse<Th2Response>(
-                Th2Response(uuid),
+                Th2Response(uuid, eventId, messagesId),
                 null,
                 statusLine,
                 httpHeaders.build(),

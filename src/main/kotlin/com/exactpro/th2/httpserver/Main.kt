@@ -15,6 +15,7 @@
 package com.exactpro.th2.httpserver
 
 import com.exactpro.th2.common.event.Event
+import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.EventBatch
 import com.exactpro.th2.common.grpc.MessageGroupBatch
@@ -32,10 +33,12 @@ import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import mu.KotlinLogging
 import java.time.Instant
-import java.util.*
 import java.util.concurrent.ConcurrentLinkedDeque
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
+import java.util.ServiceLoader
+
+
 
 private val LOGGER = KotlinLogging.logger { }
 
@@ -66,7 +69,7 @@ class Main {
                 .addModule(KotlinModule(nullIsSameAsDefault = true))
                 .build()
 
-            val settings = factory.getCustomConfiguration(Settings::class.java, mapper)
+            val settings = factory.getCustomConfiguration(MicroserviceSettings::class.java, mapper)
 
             run(
                 settings,
@@ -82,7 +85,7 @@ class Main {
         }
 
         private fun run(
-            settings: Settings,
+            settings: MicroserviceSettings,
             responseManager: IResponseManager,
             eventRouter: MessageRouter<EventBatch>,
             messageRouter: MessageRouter<MessageGroupBatch>,
@@ -90,21 +93,17 @@ class Main {
         ) {
             val connectionId = ConnectionID.newBuilder().setSessionAlias(settings.sessionAlias).build()
 
+
             val rootEventId = eventRouter.storeEvent(Event.start().apply {
                 endTimestamp()
-                name("HTTP server '${settings.sessionAlias}' ${Instant.now()}")
+                name("HTTP SERVER | alias: \"${settings.sessionAlias}\" | ${Instant.now()}")
                 type("Microservice")
             }).id
 
             val options = Th2ServerOptions(
-                settings.https,
-                settings.port,
-                settings.threads,
-                settings.keystorePass,
-                settings.sslProtocol,
-                settings.keystoreType,
-                settings.keyManagerAlgorithm,
-                settings.keystorePath,
+                settings,
+                eventRouter,
+                rootEventId,
                 connectionId,
                 messageRouter
             )
@@ -116,6 +115,26 @@ class Main {
                     type,
                     error
                 )
+            }
+
+            val serverEventStore = { name: String, eventId: String?, throwable: Throwable? ->
+                val type = if (throwable != null) "Error" else "Info"
+                val status = if (throwable != null) Event.Status.FAILED else Event.Status.PASSED
+                val event = Event.start().apply {
+                    endTimestamp()
+                    name(name)
+                    type(type)
+                    status(status)
+
+                    var error = throwable
+
+                    while (error != null) {
+                        bodyData(EventUtils.createMessageBean(error.message))
+                        error = error.cause
+                    }
+                }
+
+                eventRouter.storeEvent(event, eventId ?: rootEventId).id
             }
 
 
@@ -136,7 +155,7 @@ class Main {
                 throw IllegalStateException("Failed to subscribe to input queue", it)
             }
 
-            val server = Th2HttpServer(eventStore, options, settings.terminationTime, settings.socketDelayCheck).apply {
+            val server = Th2HttpServer(serverEventStore, options, settings.terminationTime, settings.socketDelayCheck).apply {
                 registerResource("server", ::stop)
             }
 
@@ -152,7 +171,7 @@ class Main {
             server.start()
         }
 
-        data class Settings(
+        data class MicroserviceSettings(
             val port: Int = 80,
             val sessionAlias: String,
             val threads: Int = 24,

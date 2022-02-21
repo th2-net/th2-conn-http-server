@@ -14,10 +14,14 @@
 
 package testimpl
 
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.httpserver.server.options.ServerOptions
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
+import rawhttp.core.RawHttpResponse
 import java.net.ServerSocket
+import java.net.Socket
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -63,8 +67,16 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions {
         }
     }
 
-    override fun onRequest(request: RawHttpRequest, id: String) {
-        queue.add(id)
+    override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) {
+        queue.add(uuid)
+    }
+
+    override fun onResponse(response: RawHttpResponse<Th2Response>) {
+
+    }
+
+    override fun onConnect(client: Socket): String {
+        return "TestEventID"
     }
 
 }

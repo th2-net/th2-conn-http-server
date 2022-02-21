@@ -22,15 +22,18 @@ import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.Direction.FIRST
 import com.exactpro.th2.common.grpc.Direction.SECOND
 import com.exactpro.th2.common.grpc.Message
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.toTimestamp
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite.Builder
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
-import rawhttp.core.*
+import rawhttp.core.RawHttpRequest
+import rawhttp.core.RawHttpResponse
 import java.io.ByteArrayOutputStream
 import java.time.Instant
 
@@ -52,18 +55,20 @@ fun AnyMessage.toRaw(name: String): RawMessage = run {
     rawMessage
 }
 
-private fun RawMessage.Builder.toBatch() = run(AnyMessage.newBuilder()::setRawMessage)
+fun RawMessage.toBatch(): MessageGroupBatch = run(AnyMessage.newBuilder()::setRawMessage)
     .run(MessageGroup.newBuilder()::addMessages)
     .run(MessageGroupBatch.newBuilder()::addGroups)
     .build()
 
-private fun ByteArrayOutputStream.toBatch(
+private fun ByteArrayOutputStream.toRawMessage(
     connectionId: ConnectionID,
     direction: Direction,
     sequence: Long,
-    metadataProperties: Map<String, String>
+    metadataProperties: Map<String, String>,
+    eventId: String
 ) = RawMessage.newBuilder().apply {
     this.body = ByteString.copyFrom(toByteArray())
+    this.parentEventIdBuilder.id = eventId
     this.metadataBuilder {
         putAllProperties(metadataProperties)
         this.timestamp = Instant.now().toTimestamp()
@@ -73,27 +78,28 @@ private fun ByteArrayOutputStream.toBatch(
             this.sequence = sequence
         }
     }
-}.toBatch()
+}.build()
 
-private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, uuid: String): MessageGroupBatch {
+private fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest, uuid: String, eventId: String): RawMessage {
     val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString(), "uuid" to uuid) }
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
         headers.writeTo(this)
         body.ifPresent { it.writeTo(this) }
-        toBatch(connectionId, direction, sequence, metadataProperties)
+        toRawMessage(connectionId, direction, sequence, metadataProperties, eventId)
     }
 }
 
-private fun HttpMessage.toBatch(connectionId: ConnectionID, direction: Direction, sequence: Long, request: RawHttpRequest): MessageGroupBatch {
-    val metadataProperties = request.run { mapOf("method" to method, "uri" to uri.toString()) }
+private fun RawHttpResponse<Th2Response>.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long): RawMessage {
+    val metadataProperties = mapOf("http" to startLine.httpVersion.toString(), "code" to startLine.statusCode.toString(), "reason" to startLine.reason)
+    val eventId = this.libResponse.get().eventId.id
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
         headers.writeTo(this)
         body.ifPresent { it.writeTo(this) }
-        toBatch(connectionId, direction, sequence, metadataProperties)
+        toRawMessage(connectionId, direction, sequence, metadataProperties, eventId)
     }
 }
 
-fun RawHttpRequest.toBatch(connectionId: ConnectionID, sequence: Long, id: String): MessageGroupBatch = toBatch(connectionId, SECOND, sequence, this, id)
-fun RawHttpResponse<*>.toBatch(connectionId: ConnectionID, sequence: Long, request: RawHttpRequest): MessageGroupBatch = toBatch(connectionId, FIRST, sequence, request)
+fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, sequence: Long, uuid: String, eventId: String): RawMessage = toRawMessage(connectionId, SECOND, sequence, this, uuid, eventId)
+fun RawHttpResponse<Th2Response>.toRawMessage(connectionId: ConnectionID, sequence: Long): RawMessage = toRawMessage(connectionId, FIRST, sequence)

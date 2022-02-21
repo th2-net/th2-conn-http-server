@@ -14,12 +14,14 @@
 
 package com.exactpro.th2.httpserver.server.options
 
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpOptions
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.io.IOException
 import java.net.ServerSocket
+import java.net.Socket
 import java.util.concurrent.ExecutorService
 import javax.annotation.concurrent.ThreadSafe
 
@@ -53,12 +55,16 @@ interface ServerOptions {
      * Must be guaranteed to be thread-safe since it will be called from different threads
      *
      */
-    fun onRequest(request: RawHttpRequest, id: String) = Unit
+    fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String)
 
     /**
      * Must be guaranteed to be thread-safe since it will be called from different threads
      *
      * @return response with specific changes or without them
      */
-    fun <T : RawHttpResponse<*>> prepareResponse(request: RawHttpRequest, response: T) = response
+    fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>) = response
+
+    fun onResponse(response: RawHttpResponse<Th2Response>)
+
+    fun onConnect(client: Socket) : String
 }

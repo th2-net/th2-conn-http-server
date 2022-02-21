@@ -14,16 +14,25 @@
 
 package com.exactpro.th2.httpserver.server.options
 
+import com.exactpro.th2.common.event.Event
+import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.ConnectionID
+import com.exactpro.th2.common.grpc.EventBatch
 import com.exactpro.th2.common.grpc.MessageGroupBatch
+import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
+import com.exactpro.th2.common.schema.message.storeEvent
+import com.exactpro.th2.httpserver.Main.Companion.MicroserviceSettings
+import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.exactpro.th2.httpserver.util.toBatch
+import com.exactpro.th2.httpserver.util.toRawMessage
 import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.io.File
 import java.net.ServerSocket
+import java.net.Socket
 import java.security.KeyStore
 import java.time.Instant
 import java.util.concurrent.ExecutorService
@@ -37,14 +46,9 @@ import javax.net.ssl.SSLContext
 
 
 class Th2ServerOptions(
-    private val https: Boolean,
-    private val port: Int,
-    private val threads: Int,
-    private val keystorePass: String,
-    private val sslProtocol: String,
-    private val keystoreType: String,
-    private val keyManagerAlgorithm: String,
-    private val keystorePath: String,
+    private val settings: MicroserviceSettings,
+    private val eventRouter: MessageRouter<EventBatch>,
+    private val rootEventID: String,
     private val connectionID: ConnectionID,
     private val messageRouter: MessageRouter<MessageGroupBatch>
 ) : ServerOptions {
@@ -58,19 +62,20 @@ class Th2ServerOptions(
     private val generateSequenceResponse = sequenceGenerator()
 
     override fun createSocket(): ServerSocket {
-        return socketFactory.createServerSocket(port).apply { logger.info("Created server socket on port:${port}") }
+        return socketFactory.createServerSocket(settings.port)
+            .apply { logger.info("Created server socket on port:${settings.port}") }
     }
 
     private fun createFactory(): ServerSocketFactory {
-        if (https) {
-            val passphrase = keystorePass.toCharArray()
-            val ctx: SSLContext = SSLContext.getInstance(sslProtocol)
-            val kmf: KeyManagerFactory = KeyManagerFactory.getInstance(keyManagerAlgorithm)
-            val ks: KeyStore = KeyStore.getInstance(keystoreType)
-            if (keystorePath.isEmpty()) {
+        if (settings.https) {
+            val passphrase = settings.keystorePass.toCharArray()
+            val ctx: SSLContext = SSLContext.getInstance(settings.sslProtocol)
+            val kmf: KeyManagerFactory = KeyManagerFactory.getInstance(settings.keyManagerAlgorithm)
+            val ks: KeyStore = KeyStore.getInstance(settings.keystoreType)
+            if (settings.keystorePath.isEmpty()) {
                 this::class.java.classLoader.getResourceAsStream("defaultkeystore").use { ks.load(it, passphrase) }
             } else {
-                File(keystorePath).inputStream().use {
+                File(settings.keystorePath).inputStream().use {
                     ks.load(it, passphrase)
                 }
             }
@@ -84,7 +89,7 @@ class Th2ServerOptions(
 
     override fun createExecutorService(): ExecutorService {
         val threadCount = AtomicInteger(1)
-        return Executors.newFixedThreadPool(threads) { runnable: Runnable? ->
+        return Executors.newFixedThreadPool(settings.threads) { runnable: Runnable? ->
             Thread(runnable).apply {
                 isDaemon = true
                 name = "th2-http-server-${threadCount.incrementAndGet()}"
@@ -92,22 +97,55 @@ class Th2ServerOptions(
         }
     }
 
-    override fun onRequest(request: RawHttpRequest, id: String) {
-        messageRouter.sendAll(
-            request.toBatch(connectionID, generateSequenceRequest(), id),
-            QueueAttribute.SECOND.toString()
-        )
+    override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) {
+        val rawMessage = request.toRawMessage(connectionID, generateSequenceRequest(), uuid, parentEventID)
+
+        messageRouter.sendAll(rawMessage.toBatch(), QueueAttribute.SECOND.toString())
+
+        eventRouter.storeEvent("Received HTTP request", parentEventID, uuid, listOf(rawMessage.metadata.id))
+
+        logger.info { "$parentEventID: Received HTTP request: \n$request" }
     }
 
-    override fun <T : RawHttpResponse<*>> prepareResponse(request: RawHttpRequest, response: T): T {
-        messageRouter.sendAll(
-            response.toBatch(connectionID, generateSequenceResponse(), request),
-            QueueAttribute.FIRST.toString()
-        )
-        return response
+
+    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>) = response
+
+    override fun onResponse(response: RawHttpResponse<Th2Response>) {
+        val rawMessage = response.toRawMessage(connectionID, generateSequenceResponse())
+
+        messageRouter.sendAll(rawMessage.toBatch(), QueueAttribute.FIRST.toString())
+
+        val th2Response = response.libResponse.get()
+        val eventId = eventRouter.storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, th2Response.messagesId)
+        logger.info { "$eventId: Sent HTTP response: \n$response" }
+    }
+
+    override fun onConnect(client: Socket): String {
+        val msg = "Connected client: $client"
+        val eventId = eventRouter.storeEvent(msg, rootEventID, null)
+        logger.info { "$eventId: $msg" }
+        return eventId
     }
 
     private fun sequenceGenerator() = Instant.now().run {
         AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
     }::incrementAndGet
+
+    private fun MessageRouter<EventBatch>.storeEvent(name: String, eventId: String, uuid: String?, messagesId: List<MessageID>? = null): String {
+        val type = if (uuid != null) "Info" else "Connection"
+        val status = Event.Status.PASSED
+        val event = Event.start().apply {
+            endTimestamp()
+            name(name)
+            type(type)
+            status(status)
+
+            uuid?.let { bodyData(EventUtils.createMessageBean("UUID: $it")) }
+            messagesId?.forEach(this::messageID)
+        }
+
+        storeEvent(event, eventId)
+
+        return event.id
+    }
 }

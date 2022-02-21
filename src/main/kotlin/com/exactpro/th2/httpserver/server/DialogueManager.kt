@@ -32,32 +32,25 @@ class DialogueManager(private val socketDelayCheck: Long) : Closeable {
     val dialogues = ConcurrentHashMap<String, Dialogue>()
     private val cleaner = Timer()
 
-
     private val checkSockets = object : TimerTask() {
-        override fun run() {
-            dialogues.forEach { (key, value) ->
-                value.socket.runCatching {
-                    if(isClosed) {
-                        dialogues.remove(key).apply { LOGGER.debug("Inactive socket [$key] was removed from store") }
-                    }
-                }.onFailure {
-                    dialogues.remove(key).apply { LOGGER.debug("Inactive socket [$key] was removed from store") }
+        override fun run() = dialogues.forEach { (key, value) ->
+            value.socket.runCatching {
+                if (isClosed) {
+                    removeSocket(key)
                 }
+            }.onFailure {
+                removeSocket(key)
             }
         }
     }
 
-    fun startCleaner() {
-        cleaner.schedule(checkSockets, socketDelayCheck*1000, socketDelayCheck*1000)
-    }
+    fun removeSocket(key: String) = dialogues.remove(key).apply { LOGGER.debug("Inactive socket [$key] was removed from store") }
+
+    fun startCleaner() = cleaner.schedule(checkSockets, socketDelayCheck * 1000, socketDelayCheck * 1000)
 
     override fun close() {
         cleaner.cancel()
-        dialogues.values.forEach { value ->
-            value.socket.runCatching {
-                close()
-            }
-        }
+        dialogues.values.forEach { it.socket.runCatching(Socket::close) }
     }
 
 }
