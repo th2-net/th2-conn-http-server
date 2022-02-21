@@ -22,7 +22,6 @@ import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageListener
 import com.exactpro.th2.common.schema.message.MessageRouter
-import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.common.schema.message.storeEvent
 import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.api.IResponseManager.ResponseManagerContext
@@ -33,7 +32,6 @@ import com.exactpro.th2.httpserver.util.toPrettyString
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import mu.KotlinLogging
-import rawhttp.core.HttpMessage
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedDeque
 import kotlin.concurrent.thread
@@ -71,7 +69,7 @@ class Main {
                 .addModule(KotlinModule(nullIsSameAsDefault = true))
                 .build()
 
-            val settings = factory.getCustomConfiguration(Settings::class.java, mapper)
+            val settings = factory.getCustomConfiguration(MicroserviceSettings::class.java, mapper)
 
             run(
                 settings,
@@ -87,7 +85,7 @@ class Main {
         }
 
         private fun run(
-            settings: Settings,
+            settings: MicroserviceSettings,
             responseManager: IResponseManager,
             eventRouter: MessageRouter<EventBatch>,
             messageRouter: MessageRouter<MessageGroupBatch>,
@@ -173,7 +171,7 @@ class Main {
             server.start()
         }
 
-        data class Settings(
+        data class MicroserviceSettings(
             val port: Int = 80,
             val sessionAlias: String,
             val threads: Int = 24,

@@ -23,7 +23,7 @@ import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.common.schema.message.storeEvent
-import com.exactpro.th2.httpserver.Main.Companion.Settings
+import com.exactpro.th2.httpserver.Main.Companion.MicroserviceSettings
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.exactpro.th2.httpserver.util.toBatch
 import com.exactpro.th2.httpserver.util.toRawMessage
@@ -45,7 +45,13 @@ import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 
 
-class Th2ServerOptions(private val settings: Settings, private val eventRouter: MessageRouter<EventBatch>, private val rootEventID: String, private val connectionID: ConnectionID, private val messageRouter: MessageRouter<MessageGroupBatch>) : ServerOptions {
+class Th2ServerOptions(
+    private val settings: MicroserviceSettings,
+    private val eventRouter: MessageRouter<EventBatch>,
+    private val rootEventID: String,
+    private val connectionID: ConnectionID,
+    private val messageRouter: MessageRouter<MessageGroupBatch>
+) : ServerOptions {
 
     private val socketFactory: ServerSocketFactory = createFactory()
 
@@ -56,7 +62,8 @@ class Th2ServerOptions(private val settings: Settings, private val eventRouter: 
     private val generateSequenceResponse = sequenceGenerator()
 
     override fun createSocket(): ServerSocket {
-        return socketFactory.createServerSocket(settings.port).apply { logger.info("Created server socket on port:${settings.port}") }
+        return socketFactory.createServerSocket(settings.port)
+            .apply { logger.info("Created server socket on port:${settings.port}") }
     }
 
     private fun createFactory(): ServerSocketFactory {
@@ -101,9 +108,7 @@ class Th2ServerOptions(private val settings: Settings, private val eventRouter: 
     }
 
 
-    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>): RawHttpResponse<Th2Response> {
-        return response
-    }
+    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>) = response
 
     override fun onResponse(response: RawHttpResponse<Th2Response>) {
         val rawMessage = response.toRawMessage(connectionID, generateSequenceResponse())

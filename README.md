@@ -1,4 +1,4 @@
-# HTTP SERVER v0.1.0
+# HTTP SERVER v0.2.0
 
 This microservice allows performing HTTP responses and receive HTTP requests.
 
@@ -86,7 +86,7 @@ metadata:
   name: http-server
 spec:
   image-name: ghcr.io/th2-net/th2-conn-http-server
-  image-version: 0.0.1
+  image-version: 0.2.0
   custom-config:
     https: false
     port: 8080

@@ -40,10 +40,6 @@ targetCompatibility = 11
 repositories {
     mavenCentral()
     maven {
-        name 'Bintray'
-        url 'https://dl.bintray.com/exactpro/th2'
-    }
-    maven {
         name 'Sonatype_snapshots'
         url 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
     }

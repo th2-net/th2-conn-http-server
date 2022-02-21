@@ -16,6 +16,7 @@ package com.exactpro.th2.httpserver.server
 
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.responses.Th2Response
+import com.google.protobuf.TextFormat
 import mu.KotlinLogging
 import rawhttp.core.HttpVersion
 import rawhttp.core.RawHttp
@@ -100,16 +101,16 @@ internal class Th2HttpServer(
                     options.onRequest(requestEagerly, uuid, parentEventId)
                 }
 
-                when(request.startLine.httpVersion) {
-                    HttpVersion.HTTP_1_1 -> {
-                        request.headers.getFirst("Connection").let {
-                            isClosing = it.isPresent && it.get().equals("close", true)
-                        }
-                    }
-                    else -> {
+                when {
+                    request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1) -> {
                         isClosing=true
                         request.headers.getFirst("Connection").ifPresent {
                             isClosing = !it.equals("keep-alive", true)
+                        }
+                    }
+                    else -> {
+                        request.headers.getFirst("Connection").let {
+                            isClosing = it.isPresent && it.get().equals("close", true)
                         }
                     }
                 }
@@ -146,7 +147,7 @@ internal class Th2HttpServer(
                     it.socket.close()
                 }
             } ?: run {
-                throw NullPointerException("No matching client in store.")
+                throw NullPointerException("No dialogue were found by uuid: $uuid in messages: ${th2Response.messagesId.joinToString(", ") { TextFormat.shortDebugString(it) }}")
             }
         }.onFailure {
             when (it) {
