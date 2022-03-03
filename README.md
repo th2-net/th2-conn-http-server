@@ -99,6 +99,7 @@ spec:
       attributes:
         - subscribe
         - send
+        - group
     - name: out_request
       connection-type: mq
       attributes:
