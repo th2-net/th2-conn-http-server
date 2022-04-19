@@ -32,7 +32,7 @@ import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 
-internal class Th2HttpServer(
+class Th2HttpServer(
     private val eventStore: (name: String, eventId: String?, throwable: Throwable?)->String,
     private val options: ServerOptions,
     private val terminationTime: Long,
