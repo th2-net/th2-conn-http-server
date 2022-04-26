@@ -86,47 +86,46 @@ class Th2HttpServer(
      * Please use it as reference in discussions and logic reworks
      */
     private fun handle(client: Socket, parentEventId: String) {
-        var request: RawHttpRequest
-        var isClosing = false
-        while (!isClosing) {
-            runCatching {
-                request = http.parseRequest(
-                    client.getInputStream(),
-                    (client.remoteSocketAddress as InetSocketAddress).address
-                )
-                val uuid = UUID.randomUUID().toString()
-                val requestEagerly = request.eagerly()
+        val request: RawHttpRequest = try {
+            http.parseRequest(
+                client.getInputStream(),
+                (client.remoteSocketAddress as InetSocketAddress).address
+            ).eagerly()
+        } catch (e: Exception) {
+            when(e) {
+                is SocketException -> onError("Socket closed: $socket",  parentEventId, e)
+                else -> onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", parentEventId, e)
+            }
+            client.runCatching(Socket::close)
+            return
+        }
 
-                additionalExecutors.submit {
-                    options.onRequest(requestEagerly, uuid, parentEventId)
-                }
+        val uuid = UUID.randomUUID().toString()
 
-                when {
-                    request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1) -> {
-                        isClosing=true
-                        request.headers.getFirst("Connection").ifPresent {
-                            isClosing = !it.equals("keep-alive", true)
-                        }
-                    }
-                    else -> {
-                        request.headers.getFirst("Connection").let {
-                            isClosing = it.isPresent && it.get().equals("close", true)
-                        }
-                    }
-                }
-
-                client.keepAlive = !isClosing
-                dialogManager.dialogues[uuid] = Dialogue(requestEagerly, client)
-
+        additionalExecutors.submit {
+            options.runCatching {
+                onRequest(request, uuid, parentEventId)
             }.onFailure {
-                isClosing = true
-                when(it) {
-                    is SocketException -> onError("Socket closed: $socket",  parentEventId, it)
-                    else -> onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", parentEventId, it)
-                }
-                client.runCatching(Socket::close)
+                LOGGER.error(it) { "Cannot execute options.onRequest hook" }
             }
         }
+
+        var keepAlive = false
+        when {
+            request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1) -> {
+                request.headers.getFirst("Connection").ifPresent{
+                    keepAlive = it.equals("keep-alive", true)
+                }
+            }
+            else -> {
+                request.headers.getFirst("Connection").let {
+                    keepAlive = !(it.isPresent && it.get().equals("close", true))
+                }
+            }
+        }
+
+        client.keepAlive = keepAlive
+        dialogManager.dialogues[uuid] = Dialogue(request, client, parentEventId)
     }
 
     fun handleResponse(response: RawHttpResponse<Th2Response>) {
@@ -145,6 +144,8 @@ class Th2HttpServer(
                 if (!it.socket.keepAlive) {
                     LOGGER.debug { "Closing socket (${it.socket.inetAddress}) from UUID: $uuid due last response." }
                     it.socket.close()
+                } else {
+                    executorService.submit { handle(it.socket, it.eventID) }
                 }
             } ?: run {
                 throw NullPointerException("No dialogue were found by uuid: $uuid in messages: ${th2Response.messagesId.joinToString(", ") { TextFormat.shortDebugString(it) }}")

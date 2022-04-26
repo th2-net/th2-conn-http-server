@@ -26,7 +26,7 @@ class TestDialogueManager {
         val delay = 1L
         val manager = DialogueManager(delay+1)
         manager.startCleaner()
-        manager.dialogues["test"] = Dialogue(RawHttpRequest(null, null, null,null), TestSocket(true))
+        manager.dialogues["test"] = Dialogue(RawHttpRequest(null, null, null,null), TestSocket(true), "")
 
         Thread.sleep((delay) * 1000)
         Assertions.assertEquals(1, manager.dialogues.size)
@@ -38,7 +38,7 @@ class TestDialogueManager {
         val delay = 1L
         val manager = DialogueManager(delay)
         manager.startCleaner()
-        manager.dialogues["test"] = Dialogue(RawHttpRequest(null, null, null,null), TestSocket(true))
+        manager.dialogues["test"] = Dialogue(RawHttpRequest(null, null, null,null), TestSocket(true), "")
         Thread.sleep(delay * 1100)
         Assertions.assertEquals(0, manager.dialogues.size)
         manager.close()
@@ -49,7 +49,7 @@ class TestDialogueManager {
         val delay = 1L
         val manager = DialogueManager(delay)
         manager.startCleaner()
-        manager.dialogues["test"] = Dialogue(RawHttpRequest(null, null, null,null), TestSocket(false))
+        manager.dialogues["test"] = Dialogue(RawHttpRequest(null, null, null,null), TestSocket(false), "")
         Thread.sleep(delay * 1100)
         Assertions.assertEquals(1, manager.dialogues.size)
         manager.close()
@@ -61,10 +61,10 @@ class TestDialogueManager {
         val manager = DialogueManager(delay)
         manager.startCleaner()
         for (i in 1..2) {
-            manager.dialogues["test$i"] = Dialogue(RawHttpRequest(null, null, null,null), TestSocket(false))
+            manager.dialogues["test$i"] = Dialogue(RawHttpRequest(null, null, null,null), TestSocket(false), "")
         }
         for (i in 3..5) {
-            manager.dialogues["test$i"] = Dialogue(RawHttpRequest(null, null, null,null), TestSocket(true))
+            manager.dialogues["test$i"] = Dialogue(RawHttpRequest(null, null, null,null), TestSocket(true), "")
         }
         Thread.sleep((delay*2) * 1000)
         Assertions.assertEquals(2, manager.dialogues.size)
