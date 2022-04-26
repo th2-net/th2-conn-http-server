@@ -24,6 +24,7 @@ import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import rawhttp.core.body.BodyReader
 import java.io.IOException
+import java.lang.IllegalStateException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -86,6 +87,11 @@ class Th2HttpServer(
      * Please use it as reference in discussions and logic reworks
      */
     private fun handle(client: Socket, parentEventId: String) {
+        if (!client.isConnected || client.isClosed || client.isInputShutdown) {
+            onError("Cannot handle socket [closed]: $socket",  parentEventId, IllegalStateException())
+            return
+        }
+
         val request: RawHttpRequest = try {
             http.parseRequest(
                 client.getInputStream(),
