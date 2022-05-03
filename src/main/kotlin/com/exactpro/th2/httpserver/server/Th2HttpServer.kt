@@ -53,21 +53,21 @@ class Th2HttpServer(private val eventStore: (name: String, eventId: String?, thr
                     val eventId = options.onConnect(client)
                     // thread waiting to accept socket before continue
                     executorService.submit {
-                        try {
+                        runCatching {
                             handle(client, eventId)
-                        } catch (e: Exception) {
-                            LOGGER.error(e) { "Client handler captured error" }
+                        }.onFailure {
+                            onError("Failed to handle client socket", throwable = it)
                         }
                     }
-                }.onFailure {
+                }.onFailure { exception ->
                     if (listen) {
-                        when (it) {
+                        when (exception) {
                             is SocketException -> {
-                                onError("Broken or closed socket!", throwable = it)
+                                onError("Broken or closed server socket!", throwable = exception)
                                 recreateSocket()
                             }
                             else -> {
-                                onError("Failed to accept client socket", throwable = it)
+                                onError("Failed to accept client socket", throwable = exception)
                                 if (socket.isClosed) recreateSocket()
                             }
                         }
@@ -159,9 +159,7 @@ class Th2HttpServer(private val eventStore: (name: String, eventId: String?, thr
                 } else {
                     executorService.submit { handle(it.socket, it.eventID) }
                 }
-            } ?: run {
-                throw NullPointerException("No dialogue were found by uuid: $uuid in messages: ${th2Response.messagesId.joinToString(", ") { TextFormat.shortDebugString(it) }}")
-            }
+            } ?: throw NullPointerException("No dialogue were found by uuid: $uuid in messages: ${th2Response.messagesId.joinToString(", ") { TextFormat.shortDebugString(it) }}")
         }.onFailure {
             when (it) {
                 is SocketException -> onError("Failed to handle response uuid: $uuid, socket is broken. $socket", th2Response.eventId.id, it)
