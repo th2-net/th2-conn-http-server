@@ -50,6 +50,7 @@ class Th2HttpServer(
 
     override fun start() {
         Thread({
+            LOGGER.trace { "Server started" }
             while (listen) {
                 runCatching {
                     val client = socket.accept()
