@@ -20,15 +20,15 @@ import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.addField
 import com.exactpro.th2.common.message.message
+import com.exactpro.th2.http.client.HttpClient
 import com.exactpro.th2.httpserver.server.Th2HttpServer
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.google.protobuf.ByteString
 import mu.KotlinLogging
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.fail
-import rawhttp.core.HttpMessage
-import rawhttp.core.RawHttpRequest
-import rawhttp.core.client.TcpRawHttpClient
+import rawhttp.core.RawHttp
+import rawhttp.core.RawHttpResponse
 import java.io.File
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
@@ -55,6 +55,12 @@ open class TestServerManager(private val https: Boolean = false, socketDelayChec
             parentEventId = EventID.getDefaultInstance()
             metadataBuilder.protocol = "http"
             metadataBuilder.putProperties("uuid", uuid)
+            if (!https) {
+                addField("headers", listOf(message().apply {
+                    addField("name", "Connection")
+                    addField("value", "close")
+                }))
+            }
         }.build()
 
         val bodyMessage = RawMessage.newBuilder().apply {
@@ -87,24 +93,38 @@ open class TestServerManager(private val https: Boolean = false, socketDelayChec
         th2server.handleResponse(th2response)
     }
 
-    fun stressSpam(request: RawHttpRequest) {
+    fun stressSpam(request: String, requestsCount: Int = 5) {
         val executor: ExecutorService = Executors.newCachedThreadPool()
 
-        val maxInstances = GlobalVariables.THREADS
-
-        val clients = List(maxInstances) { TcpRawHttpClient(TestClientOptions(https)) }
+        val client = HttpClient(
+            https,
+            "localhost",
+            25565,
+            20000,
+            5000,
+            minOf(requestsCount, 5),
+            emptyMap(),
+            { inputRequest -> inputRequest },
+            { LOGGER.info { "Client hook: Sending request" } },
+            { _, response -> LOGGER.info { "Client hook: Received response: ${response.statusCode}" } }
+        )
 
         try {
-            val futures = clients.map { executor.submit(Callable { it.send(request) }) }
 
-            repeat(maxInstances) {
+            val futures = (0 until requestsCount).toList().map {
+                executor.submit(Callable<RawHttpResponse<*>> {
+                    client.send(RawHttp().parseRequest(request))
+                })
+            }
+
+            repeat(requestsCount) {
                 handleResponse()
                 LOGGER.debug { "Server handled response number: ${it+1}" }
             }
 
             futures.forEachIndexed { index, future ->
                 future.runCatching {
-                    val response = get(15, TimeUnit.SECONDS)
+                    val response = get(5, TimeUnit.SECONDS)
                     LOGGER.debug { "[${index + 1}] Feature returned response: $response" }
                     Assertions.assertEquals(response.statusCode, 200)
                     LOGGER.debug { "${index + 1} test passed" }
@@ -114,9 +134,9 @@ open class TestServerManager(private val https: Boolean = false, socketDelayChec
             }
         } catch (e: Exception) {
             LOGGER.error(e) { "Can't handle stress test " }
-            fail("Can't handle stress test with max: $maxInstances", e)
+            fail("Can't handle stress test with max: $requestsCount", e)
         } finally {
-            clients.forEach { it.close() }
+           client.close()
         }
     }
 

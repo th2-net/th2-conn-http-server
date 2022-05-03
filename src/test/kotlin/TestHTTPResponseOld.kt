@@ -16,7 +16,6 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
-import rawhttp.core.RawHttp
 import testimpl.TestServerManager
 
 /*
@@ -43,15 +42,11 @@ class TestHTTPResponseOld {
 
     @Test
     fun responseTest() {
-        val request = RawHttp().parseRequest(
-            """
+        server.stressSpam("""
             GET / HTTP/1.0
             Host: localhost:${GlobalVariables.PORT}
             User-Agent: client RawHTTP
-            """.trimIndent()
-        )
-
-        server.stressSpam(request)
+            """.trimIndent())
     }
 
 }

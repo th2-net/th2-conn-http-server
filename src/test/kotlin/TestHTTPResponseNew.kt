@@ -43,16 +43,12 @@ class TestHTTPResponseNew {
 
     @Test
     fun responseParallelTest() {
-        val request = RawHttp().parseRequest(
-            """
+        server.stressSpam("""
             GET / HTTP/1.1
             Connection: close
             Host: localhost:${GlobalVariables.PORT}
             User-Agent: client RawHTTP
-            """.trimIndent()
-        )
-
-        server.stressSpam(request)
+            """.trimIndent())
     }
 
     //@Test
