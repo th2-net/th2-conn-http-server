@@ -109,7 +109,7 @@ class Th2HttpServer(
 
         val uuid = UUID.randomUUID().toString()
 
-        LOGGER.trace { "Request from socket: $client was received: $request\n uuid generated: $uuid" }
+        LOGGER.debug { "Request from socket: $client was received: \ngenerated uuid: $uuid \n$request" }
 
         additionalExecutors.submit {
             options.runCatching {

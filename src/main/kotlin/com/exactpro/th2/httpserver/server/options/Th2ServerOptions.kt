@@ -88,11 +88,13 @@ class Th2ServerOptions(
     }
 
     override fun createExecutorService(): ExecutorService {
+        logger.trace { "Created Executor service" }
         val threadCount = AtomicInteger(1)
         return Executors.newFixedThreadPool(settings.threads) { runnable: Runnable? ->
             Thread(runnable).apply {
                 isDaemon = true
                 name = "th2-http-server-${threadCount.incrementAndGet()}"
+                logger.trace { "Created thread: $name" }
             }
         }
     }

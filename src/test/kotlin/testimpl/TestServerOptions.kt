@@ -69,13 +69,15 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions {
 
     override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) {
         queue.add(uuid)
+        logger.debug { "OnRequest options call" }
     }
 
     override fun onResponse(response: RawHttpResponse<Th2Response>) {
-
+        logger.debug { "onResponse options call" }
     }
 
     override fun onConnect(client: Socket): String {
+        logger.debug { "onConnect options call" }
         return "TestEventID"
     }
 
