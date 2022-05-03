@@ -14,7 +14,6 @@
 
 package testimpl
 
-import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import mu.KotlinLogging
@@ -63,6 +62,7 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions {
             Thread(runnable).apply {
                 isDaemon = true
                 name = "th2-http-server-${threadCount.incrementAndGet()}"
+                logger.info { "Thread created: $name" }
             }
         }
     }
