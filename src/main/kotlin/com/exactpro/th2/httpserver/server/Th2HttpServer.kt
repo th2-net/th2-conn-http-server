@@ -108,6 +108,8 @@ class Th2HttpServer(
 
         val uuid = UUID.randomUUID().toString()
 
+        LOGGER.trace { "Request from socket: $client was received: $request\n uuid generated: $uuid" }
+
         additionalExecutors.submit {
             options.runCatching {
                 onRequest(request, uuid, parentEventId)
@@ -131,7 +133,10 @@ class Th2HttpServer(
         }
 
         client.keepAlive = keepAlive
-        dialogManager.dialogues[uuid] = Dialogue(request, client, parentEventId)
+        Dialogue(request, client, parentEventId).also {
+            dialogManager.dialogues[uuid] = it
+            LOGGER.trace { "Dialogue was created and stored: $uuid" }
+        }
     }
 
     fun handleResponse(response: RawHttpResponse<Th2Response>) {

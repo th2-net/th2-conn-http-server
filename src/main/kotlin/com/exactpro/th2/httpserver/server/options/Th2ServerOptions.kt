@@ -98,13 +98,14 @@ class Th2ServerOptions(
     }
 
     override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) {
+        logger.trace { "" }
         val rawMessage = request.toRawMessage(connectionID, generateSequenceRequest(), uuid, parentEventID)
 
         messageRouter.sendAll(rawMessage.toBatch(), QueueAttribute.SECOND.toString())
 
         eventRouter.storeEvent("Received HTTP request", parentEventID, uuid, listOf(rawMessage.metadata.id))
 
-        logger.info { "$parentEventID: Received HTTP request: \n$request" }
+        logger.info { "$parentEventID: HTTP request was sent to mq, uuid: $uuid" }
     }
 
 
