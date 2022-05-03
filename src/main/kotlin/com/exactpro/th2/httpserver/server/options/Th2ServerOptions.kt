@@ -127,7 +127,7 @@ class Th2ServerOptions(
     override fun onConnect(client: Socket): String {
         val msg = "Connected client: $client"
         val eventId = eventRouter.storeEvent(msg, rootEventID, null)
-        logger.info { "$eventId: $msg" }
+        logger.info { "$msg | parentEventID: $eventId" }
         return eventId
     }
 

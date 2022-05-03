@@ -33,14 +33,10 @@ import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 
-class Th2HttpServer(
-    private val eventStore: (name: String, eventId: String?, throwable: Throwable?)->String,
-    private val options: ServerOptions,
-    private val terminationTime: Long,
-    socketDelayCheck: Long
-) : HttpServer {
+class Th2HttpServer(private val eventStore: (name: String, eventId: String?, throwable: Throwable?) -> String, private val options: ServerOptions, private val terminationTime: Long, socketDelayCheck: Long) : HttpServer {
 
-    @Volatile private var listen: Boolean = true
+    @Volatile
+    private var listen: Boolean = true
     private val dialogManager: DialogueManager = DialogueManager(socketDelayCheck)
 
     private var socket: ServerSocket = options.createSocket()
@@ -56,7 +52,13 @@ class Th2HttpServer(
                     val client = socket.accept()
                     val eventId = options.onConnect(client)
                     // thread waiting to accept socket before continue
-                    executorService.submit { handle(client, eventId) }
+                    executorService.submit {
+                        try {
+                            handle(client, eventId)
+                        } catch (e: Exception) {
+                            LOGGER.error(e) { "Client handler captured error" }
+                        }
+                    }
                 }.onFailure {
                     if (listen) {
                         when (it) {
@@ -65,7 +67,7 @@ class Th2HttpServer(
                                 recreateSocket()
                             }
                             else -> {
-                                onError("Failed to accept client socket", throwable= it)
+                                onError("Failed to accept client socket", throwable = it)
                                 if (socket.isClosed) recreateSocket()
                             }
                         }
@@ -89,18 +91,16 @@ class Th2HttpServer(
      */
     private fun handle(client: Socket, parentEventId: String) {
         if (!client.isConnected || client.isClosed || client.isInputShutdown) {
-            onError("Cannot handle socket [closed]: $socket",  parentEventId, IllegalStateException())
+            onError("Cannot handle socket [closed]: $socket", parentEventId, IllegalStateException())
             return
         }
 
         val request: RawHttpRequest = try {
-            http.parseRequest(
-                client.getInputStream(),
-                (client.remoteSocketAddress as InetSocketAddress).address
-            ).eagerly()
+            http.parseRequest(client.getInputStream(), (client.remoteSocketAddress as InetSocketAddress).address)
+                .eagerly()
         } catch (e: Exception) {
-            when(e) {
-                is SocketException -> onError("Socket closed: $socket",  parentEventId, e)
+            when (e) {
+                is SocketException -> onError("Socket closed: $socket", parentEventId, e)
                 else -> onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", parentEventId, e)
             }
             client.runCatching(Socket::close)
@@ -122,7 +122,7 @@ class Th2HttpServer(
         var keepAlive = false
         when {
             request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1) -> {
-                request.headers.getFirst("Connection").ifPresent{
+                request.headers.getFirst("Connection").ifPresent {
                     keepAlive = it.equals("keep-alive", true)
                 }
             }
@@ -180,8 +180,8 @@ class Th2HttpServer(
         } catch (e: IOException) {
             LOGGER.warn(e) { "Failed to close Server socket" }
         } finally {
-            executorService.awaitShutdown(terminationTime) { LOGGER.warn {"Sockets Executor service didn't turn off on specified time"} }
-            additionalExecutors.awaitShutdown(0L) { LOGGER.warn {"Additional Executor service didn't turn off on specified time"} }
+            executorService.awaitShutdown(terminationTime) { LOGGER.warn { "Sockets Executor service didn't turn off on specified time" } }
+            additionalExecutors.awaitShutdown(0L) { LOGGER.warn { "Additional Executor service didn't turn off on specified time" } }
         }
     }
 
@@ -195,13 +195,13 @@ class Th2HttpServer(
         }
     }
 
-    private fun onError(name: String, eventId: String? = null, throwable: Throwable) : String {
+    private fun onError(name: String, eventId: String? = null, throwable: Throwable): String {
         if (!listen) {
-            LOGGER.warn(throwable) { "$eventId: $name"  }
+            LOGGER.warn(throwable) { "$eventId: $name" }
         } else {
             LOGGER.error(throwable) { "$eventId: $name" }
         }
-        return eventStore (name, eventId, throwable)
+        return eventStore(name, eventId, throwable)
     }
 
     private fun ExecutorService.awaitShutdown(terminationTime: Long, onTimeout: () -> Unit) {
