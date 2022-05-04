@@ -52,8 +52,9 @@ class Th2ServerOptions(
     private val generateSequenceResponse = sequenceGenerator()
 
     override fun createSocket(): ServerSocket {
-        return socketFactory.createServerSocket(settings.port)
-            .apply { logger.info("Created server socket on port:${settings.port}") }
+        val port = settings.port ?: if (settings.https) 443 else 80
+        return socketFactory.createServerSocket(port)
+            .apply { logger.info("Created server socket on port:$port") }
     }
 
     private fun createFactory(): ServerSocketFactory {

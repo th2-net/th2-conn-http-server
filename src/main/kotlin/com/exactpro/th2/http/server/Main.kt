@@ -151,7 +151,7 @@ class Main {
         }
 
         data class MicroserviceSettings(
-            val port: Int = 80,
+            val port: Int? = null,
             val sessionAlias: String,
             val threads: Int = 24,
             val https: Boolean = false,

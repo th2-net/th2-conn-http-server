@@ -6,7 +6,7 @@ This microservice allows performing HTTP responses and receive HTTP requests.
 
 Main configuration is done via setting following properties in a custom configuration:
 + **https** - set protocol for communication, `true` if you want to use `https` (`false` by default)
-+ **port** - port for HTTP requests (`80` by default)
++ **port** - port for HTTP requests (null by default) - if null `80` or `443` will be used depending on https property
 + **sessionAlias** - session alias for incoming/outgoing TH2 messages (e.g. `rest_api`)
 + **threads** - number of socket-processing threads
 + **terminationTime** - the specified time to wait for the executors to close (`30` by default)
@@ -23,7 +23,7 @@ Please before production usage put your personal keystore in properties, its not
 ### Configuration example
 ```yaml
 https: false
-port: 334
+port: 8080
 sessionAlias: api_session
 threads: 24
 terminationTime: 30
