@@ -1,4 +1,4 @@
-/*
+package com.exactpro.th2.http.server/*
  * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,11 @@
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
-import testimpl.TestServerManager
+import com.exactpro.th2.http.server.testimpl.TestServerManager
 
-/*
- * HTTP 1.0
- */
-class TestHTTPResponseOld {
+class TestHTTPSResponseNew {
     companion object {
-        private val server = TestServerManager(false)
+        private val server = TestServerManager(true)
 
         @BeforeAll
         @JvmStatic
@@ -40,7 +37,8 @@ class TestHTTPResponseOld {
     @Test
     fun responseTest() {
         server.stressSpam("""
-            GET / HTTP/1.0
+            GET / HTTP/1.1
+            Connection: close
             Host: localhost:${GlobalVariables.PORT}
             User-Agent: client RawHTTP
             """.trimIndent())

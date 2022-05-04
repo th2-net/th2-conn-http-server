@@ -12,9 +12,16 @@
  *
  */
 
-class GlobalVariables {
-    companion object {
-        const val PORT = 25565
-        const val THREADS = 5
+package com.exactpro.th2.http.server.testimpl
+
+import java.net.Socket
+
+class TestSocket(private val closed: Boolean = false) : Socket() {
+    override fun isClosed(): Boolean {
+        return closed
+    }
+
+    override fun close() {
+        runCatching { super.close() }
     }
 }

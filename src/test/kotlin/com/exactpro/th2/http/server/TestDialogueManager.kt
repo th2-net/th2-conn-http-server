@@ -1,4 +1,4 @@
-/*
+package com.exactpro.th2.http.server/*
  * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,12 +12,10 @@
  *
  */
 
-import com.exactpro.th2.http.server.Dialogue
-import com.exactpro.th2.http.server.DialogueManager
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import rawhttp.core.RawHttpRequest
-import testimpl.TestSocket
+import com.exactpro.th2.http.server.testimpl.TestSocket
 
 class TestDialogueManager {
 

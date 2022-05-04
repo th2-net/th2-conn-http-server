@@ -12,11 +12,11 @@
  *
  */
 
-package testimpl
+package com.exactpro.th2.http.server.testimpl
 
+import com.exactpro.th2.http.server.GlobalVariables
 import com.exactpro.th2.http.server.options.ServerOptions
 import com.exactpro.th2.http.server.response.CommonData
-import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.net.ServerSocket

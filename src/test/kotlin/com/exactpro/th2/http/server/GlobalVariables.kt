@@ -1,4 +1,4 @@
-/*
+package com.exactpro.th2.http.server/*
  * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,16 +12,9 @@
  *
  */
 
-package testimpl
-
-import java.net.Socket
-
-class TestSocket(private val closed: Boolean = false) : Socket() {
-    override fun isClosed(): Boolean {
-        return closed
-    }
-
-    override fun close() {
-        runCatching { super.close() }
+class GlobalVariables {
+    companion object {
+        const val PORT = 25565
+        const val THREADS = 5
     }
 }

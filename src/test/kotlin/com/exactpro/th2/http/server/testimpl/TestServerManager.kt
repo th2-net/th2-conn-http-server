@@ -12,7 +12,7 @@
  *
  */
 
-package testimpl
+package com.exactpro.th2.http.server.testimpl
 
 import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.EventID
