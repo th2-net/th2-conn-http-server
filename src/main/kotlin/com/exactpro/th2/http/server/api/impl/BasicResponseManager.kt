@@ -12,14 +12,14 @@
  *
  */
 
-package com.exactpro.th2.httpserver.api.impl
+package com.exactpro.th2.http.server.api.impl
 
 
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.message.toJson
-import com.exactpro.th2.httpserver.api.IResponseManager
-import com.exactpro.th2.httpserver.api.IResponseManager.ResponseManagerContext
-import com.exactpro.th2.httpserver.server.responses.Th2Response
+import com.exactpro.th2.http.server.api.IResponseManager
+import com.exactpro.th2.http.server.api.IResponseManager.ResponseManagerContext
+import com.exactpro.th2.http.server.response.CommonData
 import mu.KotlinLogging
 import rawhttp.core.RawHttpResponse
 
@@ -27,7 +27,7 @@ class BasicResponseManager : IResponseManager {
 
     private val logger = KotlinLogging.logger {}
 
-    private lateinit var answer: (RawHttpResponse<Th2Response>) -> Unit
+    private lateinit var answer: (RawHttpResponse<CommonData>) -> Unit
 
     override fun init(value: ResponseManagerContext) {
         check(!::answer.isInitialized) { "Response manager is already initialized" }
@@ -36,7 +36,7 @@ class BasicResponseManager : IResponseManager {
 
     override fun handleResponse(messages: MessageGroup) {
         logger.debug { "Handling messages from mq (Response): \n${messages.toJson()}" }
-        answer(Th2Response.Builder().setGroup(messages).build())
+        answer(CommonData.Builder().setGroup(messages).build())
     }
 
     override fun close() {

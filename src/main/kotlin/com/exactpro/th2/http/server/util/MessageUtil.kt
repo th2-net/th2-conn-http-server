@@ -14,7 +14,7 @@
 
 @file:JvmName("MessageUtil")
 
-package com.exactpro.th2.httpserver.util
+package com.exactpro.th2.http.server.util
 
 import com.exactpro.th2.common.grpc.AnyMessage
 import com.exactpro.th2.common.grpc.ConnectionID
@@ -22,12 +22,11 @@ import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.Direction.FIRST
 import com.exactpro.th2.common.grpc.Direction.SECOND
 import com.exactpro.th2.common.grpc.Message
-import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.toTimestamp
-import com.exactpro.th2.httpserver.server.responses.Th2Response
+import com.exactpro.th2.http.server.response.CommonData
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite.Builder
 import com.google.protobuf.MessageOrBuilder
@@ -90,7 +89,7 @@ private fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, direction: D
     }
 }
 
-private fun RawHttpResponse<Th2Response>.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long): RawMessage {
+private fun RawHttpResponse<CommonData>.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long): RawMessage {
     val metadataProperties = mapOf("http" to startLine.httpVersion.toString(), "code" to startLine.statusCode.toString(), "reason" to startLine.reason)
     val eventId = this.libResponse.get().eventId.id
     return ByteArrayOutputStream().run {
@@ -102,4 +101,4 @@ private fun RawHttpResponse<Th2Response>.toRawMessage(connectionId: ConnectionID
 }
 
 fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, sequence: Long, uuid: String, eventId: String): RawMessage = toRawMessage(connectionId, SECOND, sequence, this, uuid, eventId)
-fun RawHttpResponse<Th2Response>.toRawMessage(connectionId: ConnectionID, sequence: Long): RawMessage = toRawMessage(connectionId, FIRST, sequence)
+fun RawHttpResponse<CommonData>.toRawMessage(connectionId: ConnectionID, sequence: Long): RawMessage = toRawMessage(connectionId, FIRST, sequence)

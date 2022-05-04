@@ -12,8 +12,8 @@
  *
  */
 
-import com.exactpro.th2.httpserver.server.Dialogue
-import com.exactpro.th2.httpserver.server.DialogueManager
+import com.exactpro.th2.http.server.Dialogue
+import com.exactpro.th2.http.server.DialogueManager
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import rawhttp.core.RawHttpRequest

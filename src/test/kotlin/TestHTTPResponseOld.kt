@@ -15,7 +15,6 @@
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.fail
 import testimpl.TestServerManager
 
 /*
@@ -23,9 +22,7 @@ import testimpl.TestServerManager
  */
 class TestHTTPResponseOld {
     companion object {
-        private val server = TestServerManager(false) {
-            fail("Server must be without errors", it)
-        }
+        private val server = TestServerManager(false)
 
         @BeforeAll
         @JvmStatic

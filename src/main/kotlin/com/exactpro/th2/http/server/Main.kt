@@ -12,23 +12,25 @@
  *
  */
 
-package com.exactpro.th2.httpserver
+package com.exactpro.th2.http.server
 
 import com.exactpro.th2.common.event.Event
-import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.EventBatch
+import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.MessageGroupBatch
+import com.exactpro.th2.common.grpc.RawMessage
+import com.exactpro.th2.common.message.plusAssign
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageListener
 import com.exactpro.th2.common.schema.message.MessageRouter
+import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.common.schema.message.storeEvent
-import com.exactpro.th2.httpserver.api.IResponseManager
-import com.exactpro.th2.httpserver.api.IResponseManager.ResponseManagerContext
-import com.exactpro.th2.httpserver.api.impl.BasicResponseManager
-import com.exactpro.th2.httpserver.server.Th2HttpServer
-import com.exactpro.th2.httpserver.server.options.Th2ServerOptions
-import com.exactpro.th2.httpserver.util.toPrettyString
+import com.exactpro.th2.http.server.api.IResponseManager
+import com.exactpro.th2.http.server.api.IResponseManager.ResponseManagerContext
+import com.exactpro.th2.http.server.api.impl.BasicResponseManager
+import com.exactpro.th2.http.server.options.Th2ServerOptions
+import com.exactpro.th2.http.server.util.toPrettyString
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import mu.KotlinLogging
@@ -93,7 +95,6 @@ class Main {
         ) {
             val connectionId = ConnectionID.newBuilder().setSessionAlias(settings.sessionAlias).build()
 
-
             val rootEventId = eventRouter.storeEvent(Event.start().apply {
                 endTimestamp()
                 name("HTTP SERVER | alias: \"${settings.sessionAlias}\" | ${Instant.now()}")
@@ -102,11 +103,10 @@ class Main {
 
             val options = Th2ServerOptions(
                 settings,
-                eventRouter,
-                rootEventId,
                 connectionId,
-                messageRouter
-            )
+                { messageRouter.send(it, QueueAttribute.SECOND.toString()) },
+                { messageRouter.send(it, QueueAttribute.FIRST.toString()) }
+            ) { event: Event, eventId: String? -> eventRouter.storeEvent(event, eventId ?: rootEventId).id }
 
             val eventStore = { name: String, type: String, error: Throwable? ->
                 eventRouter.storeEvent(
@@ -116,27 +116,6 @@ class Main {
                     error
                 )
             }
-
-            val serverEventStore = { name: String, eventId: String?, throwable: Throwable? ->
-                val type = if (throwable != null) "Error" else "Info"
-                val status = if (throwable != null) Event.Status.FAILED else Event.Status.PASSED
-                val event = Event.start().apply {
-                    endTimestamp()
-                    name(name)
-                    type(type)
-                    status(status)
-
-                    var error = throwable
-
-                    while (error != null) {
-                        bodyData(EventUtils.createMessageBean(error.message))
-                        error = error.cause
-                    }
-                }
-
-                eventRouter.storeEvent(event, eventId ?: rootEventId).id
-            }
-
 
             val listener = MessageListener<MessageGroupBatch> { _, message ->
                 message.groupsList.forEach { group ->
@@ -155,7 +134,7 @@ class Main {
                 throw IllegalStateException("Failed to subscribe to input queue", it)
             }
 
-            val server = Th2HttpServer(serverEventStore, options, settings.terminationTime, settings.socketDelayCheck).apply {
+            val server = HttpServer(options, settings.terminationTime, settings.socketDelayCheck).apply {
                 registerResource("server", ::stop)
             }
 
@@ -194,6 +173,12 @@ class Main {
                 2 -> instances.first { !defaultImpl.isInstance(it) }
                 else -> error("More than 1 non-default instance of ${T::class.simpleName} has been found: $instances")
             }
+        }
+
+        private fun MessageRouter<MessageGroupBatch>.send(message: RawMessage, vararg attribute: String) {
+            sendAll(MessageGroupBatch.newBuilder().addGroups(MessageGroup.newBuilder().apply {
+                this += message
+            }).build(), *attribute)
         }
 
     }

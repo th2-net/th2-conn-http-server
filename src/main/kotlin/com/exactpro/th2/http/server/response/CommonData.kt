@@ -12,7 +12,7 @@
  *
  */
 
-package com.exactpro.th2.httpserver.server.responses
+package com.exactpro.th2.http.server.response
 
 import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.Message
@@ -22,11 +22,11 @@ import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.message.getInt
 import com.exactpro.th2.common.message.getList
 import com.exactpro.th2.common.message.getString
-import com.exactpro.th2.httpserver.util.requireType
-import com.exactpro.th2.httpserver.util.toParsed
-import com.exactpro.th2.httpserver.util.toPrettyString
+import com.exactpro.th2.http.server.util.requireType
+import com.exactpro.th2.http.server.util.toParsed
+import com.exactpro.th2.http.server.util.toPrettyString
 import rawhttp.core.body.EagerBodyReader
-import com.exactpro.th2.httpserver.util.toRaw
+import com.exactpro.th2.http.server.util.toRaw
 import rawhttp.core.HttpVersion
 import rawhttp.core.RawHttpHeaders
 import rawhttp.core.RawHttpResponse
@@ -50,7 +50,7 @@ private const val REASON_PROPERTY = HEADERS_REASON_FIELD
 private const val DEFAULT_CODE = 200
 private const val DEFAULT_REASON = "OK"
 
-data class Th2Response(val uuid: String, val eventId: EventID, val messagesId: List<MessageID>) {
+data class CommonData(val uuid: String, val eventId: EventID, val messagesId: List<MessageID>) {
     class Builder {
         private val metadata = hashMapOf<String, String>()
 
@@ -91,7 +91,7 @@ data class Th2Response(val uuid: String, val eventId: EventID, val messagesId: L
             }
         }
 
-        fun build(): RawHttpResponse<Th2Response> {
+        fun build(): RawHttpResponse<CommonData> {
             metadata.putAll(body.metadata.propertiesMap)
 
             val code: Int = head.getInt(HEADERS_CODE_FIELD) ?: metadata[CODE_PROPERTY]?.toInt() ?: DEFAULT_CODE
@@ -122,8 +122,8 @@ data class Th2Response(val uuid: String, val eventId: EventID, val messagesId: L
 
             val messagesId = listOf(head.metadata.id, body.metadata.id)
 
-            return RawHttpResponse<Th2Response>(
-                Th2Response(uuid, eventId, messagesId),
+            return RawHttpResponse<CommonData>(
+                CommonData(uuid, eventId, messagesId),
                 null,
                 statusLine,
                 httpHeaders.build(),

@@ -12,9 +12,10 @@
  *
  */
 
-package com.exactpro.th2.httpserver.server.options
+package com.exactpro.th2.http.server.options
 
-import com.exactpro.th2.httpserver.server.responses.Th2Response
+import com.exactpro.th2.http.server.response.CommonData
+import mu.KotlinLogging
 import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpOptions
 import rawhttp.core.RawHttpRequest
@@ -26,7 +27,9 @@ import java.util.concurrent.ExecutorService
 import javax.annotation.concurrent.ThreadSafe
 
 @ThreadSafe
-interface ServerOptions {
+abstract class ServerOptions {
+
+    protected val logger = KotlinLogging.logger { this.javaClass.simpleName }
 
     /**
      * Creates a server socket for a server to use
@@ -35,7 +38,7 @@ interface ServerOptions {
      * @throws IOException if an error occurs when binding the socket
      */
     @Throws(IOException::class)
-    fun createSocket(): ServerSocket
+    abstract fun createSocket(): ServerSocket
 
     /**
      * @return the [RawHttp] instance to use to parse requests and responses
@@ -49,22 +52,27 @@ interface ServerOptions {
      * @return executor service to use to run client-serving [Runnable]s. Each [Runnable] runs until
      * the connection with the client is closed or lost
      */
-    fun createExecutorService(): ExecutorService
+    abstract fun createExecutorService(): ExecutorService
 
     /**
      * Must be guaranteed to be thread-safe since it will be called from different threads
      *
      */
-    fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String)
+    open fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) = Unit
 
     /**
      * Must be guaranteed to be thread-safe since it will be called from different threads
      *
      * @return response with specific changes or without them
      */
-    fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>) = response
+    open fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<CommonData>) = response
 
-    fun onResponse(response: RawHttpResponse<Th2Response>)
+    open fun onResponse(response: RawHttpResponse<CommonData>) = Unit
 
-    fun onConnect(client: Socket) : String
+    /**
+     * @return client id as [String]
+     */
+    abstract fun onConnect(client: Socket) : String
+
+    open fun onError(message: String, clientID: String? = null, exception: Throwable) = logger.error(exception) { "[ClientID: $clientID] $message" }
 }

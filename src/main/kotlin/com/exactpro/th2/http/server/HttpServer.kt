@@ -12,17 +12,17 @@
  *
  */
 
-package com.exactpro.th2.httpserver.server
+package com.exactpro.th2.http.server
 
-import com.exactpro.th2.httpserver.server.options.ServerOptions
-import com.exactpro.th2.httpserver.server.responses.Th2Response
+import com.exactpro.th2.http.server.options.ServerOptions
+import com.exactpro.th2.http.server.response.CommonData
+import com.exactpro.th2.http.server.util.tryCloseBody
 import com.google.protobuf.TextFormat
 import mu.KotlinLogging
 import rawhttp.core.HttpVersion
 import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
-import rawhttp.core.body.BodyReader
 import java.io.IOException
 import java.lang.IllegalStateException
 import java.net.InetSocketAddress
@@ -32,11 +32,16 @@ import java.net.SocketException
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
-class Th2HttpServer(private val eventStore: (name: String, eventId: String?, throwable: Throwable?) -> String, private val options: ServerOptions, private val terminationTime: Long, socketDelayCheck: Long) : HttpServer {
+class HttpServer(
+    private val options: ServerOptions,
+    private val terminationTime: Long,
+    socketDelayCheck: Long
+) : RawHttpServer {
 
     @Volatile
-    private var listen: Boolean = true
+    private var active: AtomicBoolean = AtomicBoolean(false)
     private val dialogManager: DialogueManager = DialogueManager(socketDelayCheck)
 
     private var socket: ServerSocket = options.createSocket()
@@ -45,41 +50,57 @@ class Th2HttpServer(private val eventStore: (name: String, eventId: String?, thr
     private val http: RawHttp = options.getRawHttp()
 
     override fun start() {
+        if (active.get()) {
+            LOGGER.warn { "Server already started" }
+            return
+        }
+        active.set(true)
+
         Thread({
-            LOGGER.trace { "Server started" }
-            while (listen) {
-                runCatching {
-                    val client = socket.accept()
-                    val eventId = options.onConnect(client)
-                    // thread waiting to accept socket before continue
-                    executorService.submit {
-                        runCatching {
-                            handle(client, eventId)
-                        }.onFailure {
-                            onError("Failed to handle client socket", throwable = it)
-                        }
-                    }
-                }.onFailure { exception ->
-                    if (listen) {
-                        when (exception) {
-                            is SocketException -> {
-                                onError("Broken or closed server socket!", throwable = exception)
-                                recreateSocket()
-                            }
-                            else -> {
-                                onError("Failed to accept client socket", throwable = exception)
-                                if (socket.isClosed) recreateSocket()
-                            }
-                        }
-                    }
-                }
-            }
+            LOGGER.info { "Server started" }
+            listen()
         }, "th2-conn-http-server").start()
+
         dialogManager.startCleaner()
     }
 
+    private fun listen() {
+        while (active.get()) {
+            socket.runCatching(ServerSocket::accept)
+                .onFailure {
+                    if (active.get()) {
+                        when (it) {
+                            is SocketException -> {
+                                options.onError("Broken or closed server socket!", exception = it)
+                                recreateSocket()
+                            }
+                            else -> {
+                                options.onError("Failed to accept client socket", exception = it)
+                                if (socket.isClosed) recreateSocket()
+                            }
+                        }
+                    } else {
+                        LOGGER.warn(it) { "Server was stopped that leaded to errors: " }
+                    }
+                }.onSuccess { client ->
+                    executorService.submit {
+                        val eventId = options.onConnect(client)
+                        runCatching {
+                            handle(client, eventId)
+                        }.onFailure {
+                            options.onError("Failed to handle client socket", exception = it)
+                        }
+                    }
+                }
+        }
+        LOGGER.debug { "Socket listener was stopped" }
+    }
+
     private fun recreateSocket() {
-        if (!listen) return
+        if (!active.get()) {
+            LOGGER.debug { "Socket wasn't recreated due non active server" }
+            return
+        }
         options.runCatching { socket = createSocket() }.onFailure { e -> LOGGER.error(e) { "Can't recreate socket!" } }
     }
 
@@ -91,7 +112,7 @@ class Th2HttpServer(private val eventStore: (name: String, eventId: String?, thr
      */
     private fun handle(client: Socket, parentEventId: String) {
         if (!client.isConnected || client.isClosed || client.isInputShutdown) {
-            onError("Cannot handle socket [closed]: $socket", parentEventId, IllegalStateException())
+            options.onError("Cannot handle socket [closed]: $socket", parentEventId, IllegalStateException())
             return
         }
 
@@ -100,8 +121,8 @@ class Th2HttpServer(private val eventStore: (name: String, eventId: String?, thr
                 .eagerly()
         } catch (e: Exception) {
             when (e) {
-                is SocketException -> onError("Socket closed: $socket", parentEventId, e)
-                else -> onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", parentEventId, e)
+                is SocketException -> options.onError("Socket closed: $socket", parentEventId, e)
+                else -> options.onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", parentEventId, e)
             }
             client.runCatching(Socket::close)
             return
@@ -140,11 +161,11 @@ class Th2HttpServer(private val eventStore: (name: String, eventId: String?, thr
         }
     }
 
-    fun handleResponse(response: RawHttpResponse<Th2Response>) {
-        val th2Response: Th2Response = response.runCatching { libResponse.get() }.onFailure {
-            onError("Can't handle response without th2 information", throwable = it)
+    fun handleResponse(response: RawHttpResponse<CommonData>) {
+        val commonData: CommonData = response.runCatching { libResponse.get() }.onFailure {
+            options.onError("Can't handle response without th2 information", exception = it)
         }.getOrThrow()
-        val uuid = th2Response.uuid
+        val uuid = commonData.uuid
 
         runCatching {
             dialogManager.dialogues.remove(uuid)?.let {
@@ -159,19 +180,19 @@ class Th2HttpServer(private val eventStore: (name: String, eventId: String?, thr
                 } else {
                     executorService.submit { handle(it.socket, it.eventID) }
                 }
-            } ?: throw NullPointerException("No dialogue were found by uuid: $uuid in messages: ${th2Response.messagesId.joinToString(", ") { TextFormat.shortDebugString(it) }}")
+            } ?: throw NullPointerException("No dialogue were found by uuid: $uuid in messages: ${commonData.messagesId.joinToString(", ") { TextFormat.shortDebugString(it) }}")
         }.onFailure {
             when (it) {
-                is SocketException -> onError("Failed to handle response uuid: $uuid, socket is broken. $socket", th2Response.eventId.id, it)
-                else -> onError("Can't handle response uuid: $uuid", th2Response.eventId.id, it)
+                is SocketException -> options.onError("Failed to handle response uuid: $uuid, socket is broken. $socket", commonData.eventId.id, it)
+                else -> options.onError("Can't handle response uuid: $uuid", commonData.eventId.id, it)
             }
         }
-        closeBodyOf(response)
+        response.tryCloseBody()
     }
 
     override fun stop() {
         LOGGER.debug("Server is shutting down")
-        listen = false
+        active.set(false)
         dialogManager.close()
         try {
             socket.close()
@@ -180,26 +201,8 @@ class Th2HttpServer(private val eventStore: (name: String, eventId: String?, thr
         } finally {
             executorService.awaitShutdown(terminationTime) { LOGGER.warn { "Sockets Executor service didn't turn off on specified time" } }
             additionalExecutors.awaitShutdown(0L) { LOGGER.warn { "Additional Executor service didn't turn off on specified time" } }
+            LOGGER.debug { "Server stopped" }
         }
-    }
-
-    private fun closeBodyOf(response: RawHttpResponse<*>) {
-        response.body.ifPresent { b: BodyReader ->
-            try {
-                b.close()
-            } catch (e: IOException) {
-                LOGGER.warn(e) { "Body of message may be already closed" }
-            }
-        }
-    }
-
-    private fun onError(name: String, eventId: String? = null, throwable: Throwable): String {
-        if (!listen) {
-            LOGGER.warn(throwable) { "$eventId: $name" }
-        } else {
-            LOGGER.error(throwable) { "$eventId: $name" }
-        }
-        return eventStore(name, eventId, throwable)
     }
 
     private fun ExecutorService.awaitShutdown(terminationTime: Long, onTimeout: () -> Unit) {

@@ -16,7 +16,7 @@ package testimpl
 
 import java.net.Socket
 
-class TestSocket(val closed: Boolean = false) : Socket() {
+class TestSocket(private val closed: Boolean = false) : Socket() {
     override fun isClosed(): Boolean {
         return closed
     }

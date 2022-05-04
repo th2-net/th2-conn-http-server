@@ -12,10 +12,10 @@
  *
  */
 
-package com.exactpro.th2.httpserver.api
+package com.exactpro.th2.http.server.api
 
 import com.exactpro.th2.common.grpc.MessageGroup
-import com.exactpro.th2.httpserver.server.responses.Th2Response
+import com.exactpro.th2.http.server.response.CommonData
 import rawhttp.core.RawHttpResponse
 
 interface IResponseManager : AutoCloseable {
@@ -24,5 +24,5 @@ interface IResponseManager : AutoCloseable {
 
     fun handleResponse(messages: MessageGroup)
 
-    data class ResponseManagerContext(val answer: (RawHttpResponse<Th2Response>) -> Unit)
+    data class ResponseManagerContext(val answer: (RawHttpResponse<CommonData>) -> Unit)
 }

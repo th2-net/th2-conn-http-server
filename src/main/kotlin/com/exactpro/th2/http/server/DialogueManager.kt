@@ -12,7 +12,7 @@
  *
  */
 
-package com.exactpro.th2.httpserver.server
+package com.exactpro.th2.http.server
 
 import java.io.Closeable
 import java.net.Socket

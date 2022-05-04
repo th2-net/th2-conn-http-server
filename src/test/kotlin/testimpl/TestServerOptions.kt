@@ -14,8 +14,8 @@
 
 package testimpl
 
-import com.exactpro.th2.httpserver.server.options.ServerOptions
-import com.exactpro.th2.httpserver.server.responses.Th2Response
+import com.exactpro.th2.http.server.options.ServerOptions
+import com.exactpro.th2.http.server.response.CommonData
 import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
@@ -32,9 +32,7 @@ import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 
 
-private val logger = KotlinLogging.logger {}
-
-class TestServerOptions(private val https: Boolean = false) : ServerOptions {
+class TestServerOptions(private val https: Boolean = false) : ServerOptions() {
     var queue = ArrayBlockingQueue<String>(100)
 
     override fun createSocket(): ServerSocket {
@@ -72,7 +70,7 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions {
         logger.debug { "OnRequest options call" }
     }
 
-    override fun onResponse(response: RawHttpResponse<Th2Response>) {
+    override fun onResponse(response: RawHttpResponse<CommonData>) {
         logger.debug { "onResponse options call" }
     }
 

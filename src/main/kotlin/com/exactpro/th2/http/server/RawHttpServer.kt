@@ -12,9 +12,9 @@
  *
  */
 
-package com.exactpro.th2.httpserver.server
+package com.exactpro.th2.http.server
 
-interface HttpServer {
+interface RawHttpServer {
     fun start()
     fun stop()
 }

@@ -20,7 +20,7 @@ import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.addField
 import com.exactpro.th2.common.message.addFields
 import com.exactpro.th2.common.message.message
-import com.exactpro.th2.httpserver.server.responses.Th2Response
+import com.exactpro.th2.http.server.response.CommonData
 import com.google.protobuf.ByteString
 import mu.KotlinLogging
 import org.junit.jupiter.api.Assertions
@@ -33,7 +33,7 @@ class TestTh2Response {
     @Test
     fun contentLengthTest() {
         // Auto generation of content length and content type overwrite check
-        val response = Th2Response.Builder().setHead(
+        val response = CommonData.Builder().setHead(
             createHeadMessage(
                 500, uuid = "test-uuid",
                 reason = "Test reason"
@@ -55,7 +55,7 @@ class TestTh2Response {
 
     @Test
     fun overwriteTest() {
-        val response = Th2Response.Builder().setHead(
+        val response = CommonData.Builder().setHead(
             createHeadMessage(
                 404, uuid = "0-0-0-0-0",
                 reason = "Non",
@@ -79,7 +79,7 @@ class TestTh2Response {
     @Test
     fun autoGenerationTest() {
         // Auto generation check
-        val response = Th2Response.Builder().setHead(
+        val response = CommonData.Builder().setHead(
             createHeadMessage(
                 uuid = "0-0-0-0-0"
             )
@@ -105,7 +105,7 @@ class TestTh2Response {
         headers.add(Header("cookie", "cookie-test"))
         headers.add(Header("test", "value=test-value;somevalue=sometest-value;"))
         // + content length header by default
-        val response = Th2Response.Builder().setHead(
+        val response = CommonData.Builder().setHead(
             createHeadMessage(
                 uuid = "0-0-0-0-0",
                 bonusHeaders = headers
@@ -131,14 +131,14 @@ class TestTh2Response {
         // Test for UUID required
         Assertions.assertThrows(
             stateException,
-            { Th2Response.Builder().setHead(createHeadMessage()).build() },
+            { CommonData.Builder().setHead(createHeadMessage()).build() },
             "UUID must be non null, Th2Response must throw error"
         )
 
         // Test for Response header message type required
         Assertions.assertThrows(
             stateException,
-            { Th2Response.Builder().setHead(createHeadMessage(uuid = "0-0-0-0-0", headType = "WrongType")) },
+            { CommonData.Builder().setHead(createHeadMessage(uuid = "0-0-0-0-0", headType = "WrongType")) },
             "Type of head message must be response, Th2Response must throw error if there another type of message"
         )
 
@@ -146,7 +146,7 @@ class TestTh2Response {
         Assertions.assertThrows(
             stateException,
             {
-                Th2Response.Builder().setGroup(
+                CommonData.Builder().setGroup(
                     MessageGroup.newBuilder()
                         .addMessages(
                             AnyMessage.newBuilder()
@@ -163,7 +163,7 @@ class TestTh2Response {
         Assertions.assertThrows(
             argumentException,
             {
-                Th2Response.Builder().setGroup(
+                CommonData.Builder().setGroup(
                     MessageGroup.newBuilder()
                         .addMessages(AnyMessage.newBuilder().mergeRawMessage(createBodyMessage()).build())
                         .addMessages(

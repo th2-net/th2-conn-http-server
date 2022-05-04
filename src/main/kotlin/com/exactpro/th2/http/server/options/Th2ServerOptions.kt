@@ -12,22 +12,16 @@
  *
  */
 
-package com.exactpro.th2.httpserver.server.options
+package com.exactpro.th2.http.server.options
 
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.ConnectionID
-import com.exactpro.th2.common.grpc.EventBatch
-import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.grpc.MessageID
-import com.exactpro.th2.common.schema.message.MessageRouter
-import com.exactpro.th2.common.schema.message.QueueAttribute
-import com.exactpro.th2.common.schema.message.storeEvent
-import com.exactpro.th2.httpserver.Main.Companion.MicroserviceSettings
-import com.exactpro.th2.httpserver.server.responses.Th2Response
-import com.exactpro.th2.httpserver.util.toBatch
-import com.exactpro.th2.httpserver.util.toRawMessage
-import mu.KotlinLogging
+import com.exactpro.th2.common.grpc.RawMessage
+import com.exactpro.th2.http.server.Main.Companion.MicroserviceSettings
+import com.exactpro.th2.http.server.response.CommonData
+import com.exactpro.th2.http.server.util.toRawMessage
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.io.File
@@ -44,19 +38,15 @@ import javax.net.ServerSocketFactory
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 
-
 class Th2ServerOptions(
     private val settings: MicroserviceSettings,
-    private val eventRouter: MessageRouter<EventBatch>,
-    private val rootEventID: String,
     private val connectionID: ConnectionID,
-    private val messageRouter: MessageRouter<MessageGroupBatch>
-) : ServerOptions {
+    private val onRequest: (message: RawMessage) -> Unit,
+    private val onResponse: (message: RawMessage) -> Unit,
+    private val onEvent: (event: Event, parentEventID: String?) -> String,
+) : ServerOptions() {
 
     private val socketFactory: ServerSocketFactory = createFactory()
-
-    private val logger = KotlinLogging.logger {}
-
 
     private val generateSequenceRequest = sequenceGenerator()
     private val generateSequenceResponse = sequenceGenerator()
@@ -104,29 +94,29 @@ class Th2ServerOptions(
 
         val rawMessage = request.toRawMessage(connectionID, generateSequenceRequest(), uuid, parentEventID)
 
-        messageRouter.sendAll(rawMessage.toBatch(), QueueAttribute.SECOND.toString())
+        onRequest(rawMessage)
 
-        eventRouter.storeEvent("Received HTTP request", parentEventID, uuid, listOf(rawMessage.metadata.id))
+        storeEvent("Received HTTP request", parentEventID, uuid, listOf(rawMessage.metadata.id))
 
         logger.info { "HTTP request was sent to mq, parentEventID: $parentEventID | uuid: $uuid" }
     }
 
 
-    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<Th2Response>) = response
+    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<CommonData>) = response
 
-    override fun onResponse(response: RawHttpResponse<Th2Response>) {
+    override fun onResponse(response: RawHttpResponse<CommonData>) {
         val rawMessage = response.toRawMessage(connectionID, generateSequenceResponse())
 
-        messageRouter.sendAll(rawMessage.toBatch(), QueueAttribute.FIRST.toString())
+        onResponse(rawMessage)
 
         val th2Response = response.libResponse.get()
-        val eventId = eventRouter.storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, th2Response.messagesId)
+        val eventId = storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, th2Response.messagesId)
         logger.info { "$eventId: Sent HTTP response: \n$response" }
     }
 
     override fun onConnect(client: Socket): String {
         val msg = "Connected client: $client"
-        val eventId = eventRouter.storeEvent(msg, rootEventID, null)
+        val eventId = storeEvent(msg, null, null)
         logger.info { "$msg | parentEventID: $eventId" }
         return eventId
     }
@@ -135,7 +125,7 @@ class Th2ServerOptions(
         AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
     }::incrementAndGet
 
-    private fun MessageRouter<EventBatch>.storeEvent(name: String, eventId: String, uuid: String?, messagesId: List<MessageID>? = null): String {
+    private fun storeEvent(name: String, eventId: String?, uuid: String?, messagesId: List<MessageID>? = null): String {
         val type = if (uuid != null) "Info" else "Connection"
         val status = Event.Status.PASSED
         val event = Event.start().apply {
@@ -148,8 +138,24 @@ class Th2ServerOptions(
             messagesId?.forEach(this::messageID)
         }
 
-        storeEvent(event, eventId)
+        return onEvent(event, eventId)
+    }
 
-        return event.id
+    override fun onError(message: String, clientID: String?, exception: Throwable) {
+        val event = Event.start().apply {
+            endTimestamp()
+            name(message)
+            type("Error")
+            status(Event.Status.FAILED )
+
+            var error: Throwable? = exception
+
+            while (error != null) {
+                bodyData(EventUtils.createMessageBean(error.message))
+                error = error.cause
+            }
+        }
+
+        onEvent(event, clientID)
     }
 }
