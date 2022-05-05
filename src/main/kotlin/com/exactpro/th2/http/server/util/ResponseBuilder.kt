@@ -128,4 +128,4 @@ class ResponseBuilder {
 
 }
 
-data class LinkedData(val uuid: String, val eventId: EventID, val messagesId: List<MessageID>)
+data class LinkedData(val uuid: String, val eventId: EventID?, val messagesId: List<MessageID>?)

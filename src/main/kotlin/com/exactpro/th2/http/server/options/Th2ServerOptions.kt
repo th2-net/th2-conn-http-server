@@ -116,7 +116,7 @@ class Th2ServerOptions(
         onResponse(rawMessage)
 
         val th2Response = response.libResponse.get()
-        val eventId = storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, th2Response.messagesId)
+        val eventId = storeEvent("Sent HTTP response", th2Response.eventId?.id, th2Response.uuid, th2Response.messagesId ?: emptyList())
         logger.info { "$eventId: Sent HTTP response: \n$response" }
     }
 
