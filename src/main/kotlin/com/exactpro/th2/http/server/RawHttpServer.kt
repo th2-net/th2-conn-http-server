@@ -14,7 +14,11 @@
 
 package com.exactpro.th2.http.server
 
+import com.exactpro.th2.http.server.util.LinkedData
+import rawhttp.core.RawHttpResponse
+
 interface RawHttpServer {
     fun start()
     fun stop()
+    fun handleResponse(response: RawHttpResponse<LinkedData>)
 }

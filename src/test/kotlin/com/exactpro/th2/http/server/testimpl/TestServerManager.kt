@@ -21,7 +21,7 @@ import com.exactpro.th2.common.message.addField
 import com.exactpro.th2.common.message.message
 import com.exactpro.th2.http.client.HttpClient
 import com.exactpro.th2.http.server.HttpServer
-import com.exactpro.th2.http.server.response.CommonData
+import com.exactpro.th2.http.server.util.ResponseBuilder
 import com.google.protobuf.ByteString
 import mu.KotlinLogging
 import org.junit.jupiter.api.Assertions
@@ -61,7 +61,7 @@ open class TestServerManager(private val https: Boolean = false, socketDelayChec
             metadata = metadataBuilder.putProperties("contentType", "application").build()
         }.build()
 
-        CommonData.Builder().setHead(responseMessage).setBody(bodyMessage).build()
+        ResponseBuilder().setHead(responseMessage).setBody(bodyMessage).build()
     }
 
     fun start() {

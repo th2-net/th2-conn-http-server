@@ -26,7 +26,6 @@ import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.toTimestamp
-import com.exactpro.th2.http.server.response.CommonData
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite.Builder
 import com.google.protobuf.MessageOrBuilder
@@ -34,6 +33,7 @@ import com.google.protobuf.util.JsonFormat
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.io.ByteArrayOutputStream
+import java.lang.IllegalStateException
 import java.time.Instant
 
 private inline operator fun <T : Builder> T.invoke(block: T.() -> Unit) = apply(block)
@@ -89,7 +89,7 @@ private fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, direction: D
     }
 }
 
-private fun RawHttpResponse<CommonData>.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long): RawMessage {
+private fun RawHttpResponse<LinkedData>.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long): RawMessage {
     val metadataProperties = mapOf("http" to startLine.httpVersion.toString(), "code" to startLine.statusCode.toString(), "reason" to startLine.reason)
     val eventId = this.libResponse.get().eventId.id
     return ByteArrayOutputStream().run {
@@ -101,4 +101,20 @@ private fun RawHttpResponse<CommonData>.toRawMessage(connectionId: ConnectionID,
 }
 
 fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, sequence: Long, uuid: String, eventId: String): RawMessage = toRawMessage(connectionId, SECOND, sequence, this, uuid, eventId)
-fun RawHttpResponse<CommonData>.toRawMessage(connectionId: ConnectionID, sequence: Long): RawMessage = toRawMessage(connectionId, FIRST, sequence)
+fun RawHttpResponse<LinkedData>.toRawMessage(connectionId: ConnectionID, sequence: Long): RawMessage = toRawMessage(connectionId, FIRST, sequence)
+
+fun MessageGroup.getFirstParentEventID() = messagesList.firstNotNullOfOrNull {
+    when {
+        it.hasRawMessage() -> it.rawMessage.parentEventId?.id
+        it.hasMessage() -> it.message.parentEventId?.id
+        else -> throw IllegalStateException("Cannot handle message kind: ${it.kindCase}")
+    }
+}
+
+fun MessageGroup.getMessageIDs() = messagesList.mapNotNull {
+    when {
+        it.hasRawMessage() -> it.rawMessage.metadata?.id
+        it.hasMessage() -> it.message.metadata?.id
+        else -> throw IllegalStateException("Cannot handle message kind: ${it.kindCase}")
+    }
+}

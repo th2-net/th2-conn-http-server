@@ -16,7 +16,7 @@ package com.exactpro.th2.http.server.testimpl
 
 import com.exactpro.th2.http.server.GlobalVariables
 import com.exactpro.th2.http.server.options.ServerOptions
-import com.exactpro.th2.http.server.response.CommonData
+import com.exactpro.th2.http.server.util.LinkedData
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.net.ServerSocket
@@ -70,7 +70,7 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions() {
         logger.debug { "OnRequest options call" }
     }
 
-    override fun onResponse(response: RawHttpResponse<CommonData>) {
+    override fun onResponse(response: RawHttpResponse<LinkedData>) {
         logger.debug { "onResponse options call" }
     }
 

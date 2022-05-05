@@ -14,15 +14,22 @@
 
 package com.exactpro.th2.http.server.api
 
-import com.exactpro.th2.common.grpc.MessageGroup
-import com.exactpro.th2.http.server.response.CommonData
+import com.exactpro.th2.common.event.Event
+import com.exactpro.th2.http.server.RawHttpServer
+import com.exactpro.th2.http.server.util.LinkedData
+import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 
-interface IResponseManager : AutoCloseable {
+interface IStateManager : AutoCloseable {
 
-    fun init(value: ResponseManagerContext)
+    fun init(value: StateManagerContext)
 
-    fun handleResponse(messages: MessageGroup)
+    fun onRequest(request: RawHttpRequest, uuid: String)
 
-    data class ResponseManagerContext(val answer: (RawHttpResponse<CommonData>) -> Unit)
+    fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<LinkedData>): RawHttpResponse<LinkedData>
+
+    data class StateManagerContext(
+        val server: RawHttpServer,
+        val onEvent: (event: Event, parentEventID: String?) -> String
+    )
 }

@@ -26,11 +26,14 @@ import com.exactpro.th2.common.schema.message.MessageListener
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.common.schema.message.storeEvent
-import com.exactpro.th2.http.server.api.IResponseManager
-import com.exactpro.th2.http.server.api.IResponseManager.ResponseManagerContext
-import com.exactpro.th2.http.server.api.impl.BasicResponseManager
+import com.exactpro.th2.http.server.api.IStateManager
+import com.exactpro.th2.http.server.api.IStateManager.StateManagerContext
+import com.exactpro.th2.http.server.api.impl.BasicStateManager
 import com.exactpro.th2.http.server.options.Th2ServerOptions
-import com.exactpro.th2.http.server.util.toPrettyString
+import com.exactpro.th2.http.server.util.ResponseBuilder
+import com.exactpro.th2.http.server.util.createErrorEvent
+import com.exactpro.th2.http.server.util.getFirstParentEventID
+import com.exactpro.th2.http.server.util.getMessageIDs
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import mu.KotlinLogging
@@ -39,8 +42,6 @@ import java.util.concurrent.ConcurrentLinkedDeque
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 import java.util.ServiceLoader
-
-
 
 private val LOGGER = KotlinLogging.logger { }
 
@@ -65,7 +66,7 @@ class Main {
                 CommonFactory()
             }.apply { resources += "factory" to ::close }
 
-            val responseManager = load<IResponseManager>(BasicResponseManager::class.java)
+            val stateManager = load<IStateManager>(BasicStateManager::class.java).apply { resources += "state-manager" to ::close }
 
             val mapper = JsonMapper.builder()
                 .addModule(KotlinModule(nullIsSameAsDefault = true))
@@ -75,7 +76,7 @@ class Main {
 
             run(
                 settings,
-                responseManager,
+                stateManager,
                 factory.eventBatchRouter,
                 factory.messageRouterMessageGroupBatch
             ) { resource, destructor ->
@@ -88,7 +89,7 @@ class Main {
 
         private fun run(
             settings: MicroserviceSettings,
-            responseManager: IResponseManager,
+            stateManager: IStateManager,
             eventRouter: MessageRouter<EventBatch>,
             messageRouter: MessageRouter<MessageGroupBatch>,
             registerResource: (name: String, destructor: () -> Unit) -> Unit
@@ -101,27 +102,43 @@ class Main {
                 type("Microservice")
             }).id
 
+            val eventStore = { event: Event, eventId: String? -> eventRouter.storeEvent(event, eventId ?: rootEventId).id }
+
             val options = Th2ServerOptions(
                 settings,
                 connectionId,
+                stateManager,
                 { messageRouter.send(it, QueueAttribute.SECOND.toString()) },
-                { messageRouter.send(it, QueueAttribute.FIRST.toString()) }
-            ) { event: Event, eventId: String? -> eventRouter.storeEvent(event, eventId ?: rootEventId).id }
+                { messageRouter.send(it, QueueAttribute.FIRST.toString()) },
+                eventStore
+            )
 
-            val eventStore = { name: String, type: String, error: Throwable? ->
-                eventRouter.storeEvent(
-                    rootEventId,
-                    name,
-                    type,
-                    error
-                )
+            val server = HttpServer(options, settings.terminationTime, settings.socketDelayCheck).apply {
+                registerResource("server", ::stop)
             }
 
-            val listener = MessageListener<MessageGroupBatch> { _, message ->
-                message.groupsList.forEach { group ->
-                    group.runCatching(responseManager::handleResponse).recoverCatching {
-                        LOGGER.error(it) { "Failed to handle message group: ${group.toPrettyString()}" }
-                        eventStore("Failed to handle message group: ${group.toPrettyString()}", "Error", it)
+            val listener = MessageListener<MessageGroupBatch> { _, batch ->
+                for (messageGroup in batch.groupsList) {
+                    val response = try {
+                        ResponseBuilder().setGroup(messageGroup).build()
+                    } catch (e: Exception) {
+                        LOGGER.error(e) { "Can't parse message group to response" }
+                        eventStore(
+                            createErrorEvent("Can't parse message group to response", e, messageGroup.getMessageIDs()),
+                            messageGroup.getFirstParentEventID()
+                        )
+                        continue
+                    }
+
+                    server.runCatching {
+                        handleResponse(response)
+                    }.onFailure {
+                        val uuid = response.libResponse.get().uuid
+                        LOGGER.error(it) { "Can't handle response with uuid: $uuid" }
+                        eventStore(
+                            createErrorEvent("Can't handle response with uuid: $uuid", it, messageGroup.getMessageIDs()),
+                            messageGroup.getFirstParentEventID()
+                        )
                     }
                 }
             }
@@ -134,18 +151,17 @@ class Main {
                 throw IllegalStateException("Failed to subscribe to input queue", it)
             }
 
-            val server = HttpServer(options, settings.terminationTime, settings.socketDelayCheck).apply {
-                registerResource("server", ::stop)
-            }
-
-            responseManager.runCatching {
-                registerResource("response-manager", ::close)
-                init(ResponseManagerContext(server::handleResponse))
+            stateManager.runCatching {
+                registerResource("state-manager", ::close)
+                init(StateManagerContext(server, eventStore))
             }.onFailure {
-                LOGGER.error(it) { "Failed to init response-manager" }
-                eventStore("Failed to init response-manager", "Error", it)
+                LOGGER.error(it) { "Failed to init state-manager" }
+                eventStore(
+                    createErrorEvent("Failed to init state-manager", it),
+                    rootEventId
+                )
                 throw it
-            }
+            }.getOrThrow()
 
             server.start()
         }

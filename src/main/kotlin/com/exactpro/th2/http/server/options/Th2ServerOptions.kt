@@ -20,7 +20,9 @@ import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.http.server.Main.Companion.MicroserviceSettings
-import com.exactpro.th2.http.server.response.CommonData
+import com.exactpro.th2.http.server.api.IStateManager
+import com.exactpro.th2.http.server.util.LinkedData
+import com.exactpro.th2.http.server.util.createErrorEvent
 import com.exactpro.th2.http.server.util.toRawMessage
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
@@ -41,6 +43,7 @@ import javax.net.ssl.SSLContext
 class Th2ServerOptions(
     private val settings: MicroserviceSettings,
     private val connectionID: ConnectionID,
+    private val stateManager: IStateManager,
     private val onRequest: (message: RawMessage) -> Unit,
     private val onResponse: (message: RawMessage) -> Unit,
     private val onEvent: (event: Event, parentEventID: String?) -> String,
@@ -93,6 +96,8 @@ class Th2ServerOptions(
     override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) {
         logger.trace { "Trying to send request into mq: ${request.startLine}" }
 
+        stateManager.onRequest(request, uuid)
+
         val rawMessage = request.toRawMessage(connectionID, generateSequenceRequest(), uuid, parentEventID)
 
         onRequest(rawMessage)
@@ -103,9 +108,9 @@ class Th2ServerOptions(
     }
 
 
-    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<CommonData>) = response
+    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<LinkedData>) = stateManager.prepareResponse(request, response)
 
-    override fun onResponse(response: RawHttpResponse<CommonData>) {
+    override fun onResponse(response: RawHttpResponse<LinkedData>) {
         val rawMessage = response.toRawMessage(connectionID, generateSequenceResponse())
 
         onResponse(rawMessage)
@@ -126,7 +131,7 @@ class Th2ServerOptions(
         AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
     }::incrementAndGet
 
-    private fun storeEvent(name: String, eventId: String?, uuid: String?, messagesId: List<MessageID>? = null): String {
+    private fun storeEvent(name: String, eventId: String?, uuid: String?, messagesId: List<MessageID> = emptyList()): String {
         val type = if (uuid != null) "Info" else "Connection"
         val status = Event.Status.PASSED
         val event = Event.start().apply {
@@ -136,27 +141,14 @@ class Th2ServerOptions(
             status(status)
 
             uuid?.let { bodyData(EventUtils.createMessageBean("UUID: $it")) }
-            messagesId?.forEach(this::messageID)
+            messagesId.forEach(this::messageID)
         }
 
         return onEvent(event, eventId)
     }
 
     override fun onError(message: String, clientID: String?, exception: Throwable) {
-        val event = Event.start().apply {
-            endTimestamp()
-            name(message)
-            type("Error")
-            status(Event.Status.FAILED )
-
-            var error: Throwable? = exception
-
-            while (error != null) {
-                bodyData(EventUtils.createMessageBean(error.message))
-                error = error.cause
-            }
-        }
-
-        onEvent(event, clientID)
+        logger.error(exception) { message }
+        onEvent(createErrorEvent(message, exception), clientID)
     }
 }

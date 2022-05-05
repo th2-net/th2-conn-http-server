@@ -15,7 +15,7 @@
 package com.exactpro.th2.http.server
 
 import com.exactpro.th2.http.server.options.ServerOptions
-import com.exactpro.th2.http.server.response.CommonData
+import com.exactpro.th2.http.server.util.LinkedData
 import com.exactpro.th2.http.server.util.tryCloseBody
 import com.google.protobuf.TextFormat
 import mu.KotlinLogging
@@ -161,33 +161,36 @@ class HttpServer(
         }
     }
 
-    fun handleResponse(response: RawHttpResponse<CommonData>) {
-        val commonData: CommonData = response.runCatching { libResponse.get() }.onFailure {
-            options.onError("Can't handle response without th2 information", exception = it)
-        }.getOrThrow()
-        val uuid = commonData.uuid
+    override fun handleResponse(response: RawHttpResponse<LinkedData>) {
+        try {
+            val linkedData: LinkedData = response.runCatching { libResponse.get() }.onFailure {
+                options.onError("Can't handle response without linked uuid information", exception = it)
+            }.getOrThrow()
+            val uuid = linkedData.uuid
 
-        runCatching {
-            dialogManager.dialogues.remove(uuid)?.let {
-                val finalResponse = options.prepareResponse(it.request, response)
-                finalResponse.writeTo(it.socket.getOutputStream())
+            runCatching {
+                dialogManager.dialogues.remove(uuid)?.let {
+                    val finalResponse = options.prepareResponse(it.request, response)
+                    finalResponse.writeTo(it.socket.getOutputStream())
 
-                options.onResponse(finalResponse)
+                    options.onResponse(finalResponse)
 
-                if (!it.socket.keepAlive) {
-                    LOGGER.debug { "Closing socket (${it.socket.inetAddress}) from UUID: $uuid due last response." }
-                    it.socket.close()
-                } else {
-                    executorService.submit { handle(it.socket, it.eventID) }
+                    if (!it.socket.keepAlive) {
+                        LOGGER.debug { "Closing socket (${it.socket.inetAddress}) from UUID: $uuid due last response." }
+                        it.socket.close()
+                    } else {
+                        executorService.submit { handle(it.socket, it.eventID) }
+                    }
+                } ?: throw NullPointerException("No dialogue were found by uuid: $uuid")
+            }.onFailure {
+                when (it) {
+                    is SocketException -> throw SocketException("Failed to handle response, socket is broken. $socket . ${it.message}")
+                    else -> throw it
                 }
-            } ?: throw NullPointerException("No dialogue were found by uuid: $uuid in messages: ${commonData.messagesId.joinToString(", ") { TextFormat.shortDebugString(it) }}")
-        }.onFailure {
-            when (it) {
-                is SocketException -> options.onError("Failed to handle response uuid: $uuid, socket is broken. $socket", commonData.eventId.id, it)
-                else -> options.onError("Can't handle response uuid: $uuid", commonData.eventId.id, it)
-            }
+            }.getOrThrow()
+        } finally {
+            response.tryCloseBody()
         }
-        response.tryCloseBody()
     }
 
     override fun stop() {

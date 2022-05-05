@@ -14,7 +14,7 @@
 
 package com.exactpro.th2.http.server.options
 
-import com.exactpro.th2.http.server.response.CommonData
+import com.exactpro.th2.http.server.util.LinkedData
 import mu.KotlinLogging
 import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpOptions
@@ -65,9 +65,9 @@ abstract class ServerOptions {
      *
      * @return response with specific changes or without them
      */
-    open fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<CommonData>) = response
+    open fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<LinkedData>) = response
 
-    open fun onResponse(response: RawHttpResponse<CommonData>) = Unit
+    open fun onResponse(response: RawHttpResponse<LinkedData>) = Unit
 
     /**
      * @return client id as [String]
