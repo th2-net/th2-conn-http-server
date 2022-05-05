@@ -1,4 +1,4 @@
-# HTTP SERVER v0.2.0
+# HTTP SERVER v1.0.0
 
 This microservice allows performing HTTP responses and receive HTTP requests.
 

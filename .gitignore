@@ -34,7 +34,6 @@ fabric.properties
 
 # Log file
 *.log
-*.log.[0-9]*
 
 # BlueJ files
 *.ctxt
@@ -90,6 +89,5 @@ bin/
 .settings/org.eclipse.buildship.core.prefs
 .gitignore
 .project
-.gitignore
 .settings/org.eclipse.jdt.core.prefs
 .classpath
