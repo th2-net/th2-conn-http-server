@@ -64,7 +64,7 @@ private fun ByteArrayOutputStream.toRawMessage(
     direction: Direction,
     sequence: Long,
     metadataProperties: Map<String, String>,
-    eventId: String
+    eventId: String?
 ) = RawMessage.newBuilder().apply {
     this.body = ByteString.copyFrom(toByteArray())
     this.parentEventIdBuilder.id = eventId
@@ -91,7 +91,7 @@ private fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, direction: D
 
 private fun RawHttpResponse<LinkedData>.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long): RawMessage {
     val metadataProperties = mapOf("http" to startLine.httpVersion.toString(), "code" to startLine.statusCode.toString(), "reason" to startLine.reason)
-    val eventId = this.libResponse.get().eventId.id
+    val eventId = this.libResponse.get().eventId?.id
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
         headers.writeTo(this)
