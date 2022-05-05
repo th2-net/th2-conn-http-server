@@ -132,14 +132,6 @@ class HttpServer(
 
         LOGGER.debug { "Request from socket: $client was received: \ngenerated uuid: $uuid \n$request" }
 
-        additionalExecutors.submit {
-            options.runCatching {
-                onRequest(request, uuid, parentEventId)
-            }.onFailure {
-                LOGGER.error(it) { "Cannot execute options.onRequest hook" }
-            }
-        }
-
         var keepAlive = false
         when {
             request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1) -> {
@@ -158,6 +150,14 @@ class HttpServer(
         Dialogue(request, client, parentEventId).also {
             dialogManager.dialogues[uuid] = it
             LOGGER.trace { "Dialogue was created and stored: $uuid" }
+        }
+
+        additionalExecutors.submit {
+            options.runCatching {
+                onRequest(request, uuid, parentEventId)
+            }.onFailure {
+                LOGGER.error(it) { "Cannot execute options.onRequest hook" }
+            }
         }
     }
 
