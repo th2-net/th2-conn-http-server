@@ -184,7 +184,7 @@ dependencies {
 }
 
 application {
-    mainClassName 'com.exactpro.th2.httpserver.Main'
+    mainClassName 'com.exactpro.th2.http.server.Main'
 }
 
 applicationName = 'service'
