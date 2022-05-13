@@ -153,7 +153,11 @@ class Main {
 
             stateManager.runCatching {
                 registerResource("state-manager", ::close)
-                init(StateManagerContext(server, eventStore))
+                val stateManagerEvent = eventRouter.storeEvent(Event.start().apply {
+                    endTimestamp()
+                    name("STATE MANAGER")
+                }, rootEventId).id
+                init(StateManagerContext(server, stateManagerEvent, eventStore))
             }.onFailure {
                 LOGGER.error(it) { "Failed to init state-manager" }
                 eventStore(
