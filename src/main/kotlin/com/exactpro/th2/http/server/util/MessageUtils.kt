@@ -67,7 +67,9 @@ private fun ByteArrayOutputStream.toRawMessage(
     eventId: String?
 ) = RawMessage.newBuilder().apply {
     this.body = ByteString.copyFrom(toByteArray())
-    this.parentEventIdBuilder.id = eventId
+    eventId?.let {
+        this.parentEventIdBuilder.id = it
+    }
     this.metadataBuilder {
         putAllProperties(metadataProperties)
         this.timestamp = Instant.now().toTimestamp()
