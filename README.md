@@ -15,6 +15,8 @@ Main configuration is done via setting following properties in a custom configur
 + **keystorePath** - path to new keystore (by default its using one from resources)
 + **keystoreType** - type of keystore (`JKS` by default)
 + **keyManagerAlgorithm** - type of keystore algorithm (`SunX509` by default)
++ **catchClientClosing** - handle as error closing of socket without agreement (`true` by default)
+
 
 ## NOTE
 
