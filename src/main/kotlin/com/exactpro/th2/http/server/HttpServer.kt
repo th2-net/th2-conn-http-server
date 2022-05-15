@@ -17,7 +17,6 @@ package com.exactpro.th2.http.server
 import com.exactpro.th2.http.server.options.ServerOptions
 import com.exactpro.th2.http.server.util.LinkedData
 import com.exactpro.th2.http.server.util.tryCloseBody
-import com.google.protobuf.TextFormat
 import mu.KotlinLogging
 import rawhttp.core.HttpVersion
 import rawhttp.core.RawHttp
@@ -175,11 +174,14 @@ class HttpServer(
 
                     options.onResponse(finalResponse)
 
-                    if (!it.socket.keepAlive) {
-                        LOGGER.debug { "Closing socket (${it.socket.inetAddress}) from UUID: $uuid due last response." }
-                        it.socket.close()
-                    } else {
-                        executorService.submit { handle(it.socket, it.eventID) }
+                    when {
+                        it.socket.keepAlive && !finalResponse.headers.getFirst("Connection").map { it.equals("close", true) }.orElse(false) -> {
+                            executorService.submit { handle(it.socket, it.eventID) }
+                        }
+                        else -> {
+                            LOGGER.debug { "Closing socket (${it.socket.inetAddress}) from UUID: $uuid due last response." }
+                            it.socket.close()
+                        }
                     }
                 } ?: throw NullPointerException("No dialogue were found by uuid: $uuid")
             }.onFailure {

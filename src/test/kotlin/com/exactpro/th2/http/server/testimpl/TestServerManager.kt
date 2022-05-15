@@ -48,10 +48,16 @@ open class TestServerManager(private val https: Boolean = false, socketDelayChec
             metadataBuilder.protocol = "http"
             metadataBuilder.putProperties("uuid", uuid)
             if (!https) {
-                addField("headers", listOf(message().apply {
-                    addField("name", "Connection")
-                    addField("value", "close")
-                }))
+                addField("headers", listOf(
+                    message().apply {
+                        addField("name", "Connection")
+                        addField("value", "close")
+                    },
+                    message().apply {
+                        addField("name", "Content-Length")
+                        addField("value", "0")
+                    }
+                ))
             }
         }.build()
 

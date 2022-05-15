@@ -24,6 +24,8 @@ import com.exactpro.th2.http.server.api.IStateManager
 import com.exactpro.th2.http.server.util.LinkedData
 import com.exactpro.th2.http.server.util.createErrorEvent
 import com.exactpro.th2.http.server.util.toRawMessage
+import rawhttp.core.RawHttp
+import rawhttp.core.RawHttpHeaders
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.io.File
@@ -108,7 +110,12 @@ class Th2ServerOptions(
     }
 
 
-    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<LinkedData>) = stateManager.prepareResponse(request, response)
+    override fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<LinkedData>): RawHttpResponse<LinkedData> = stateManager.prepareResponse(request, response).run {
+        when {
+            !body.isPresent && RawHttp.responseHasBody(startLine, request.startLine) -> withHeaders(RawHttpHeaders.CONTENT_LENGTH_ZERO)
+            else -> this
+        }
+    }
 
     override fun onResponse(response: RawHttpResponse<LinkedData>) {
         val rawMessage = response.toRawMessage(connectionID, generateSequenceResponse())
@@ -116,7 +123,7 @@ class Th2ServerOptions(
         onResponse(rawMessage)
 
         val th2Response = response.libResponse.get()
-        val eventId = storeEvent("Sent HTTP response", th2Response.eventId?.id, th2Response.uuid, th2Response.messagesId ?: emptyList())
+        val eventId = storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, th2Response.messagesId ?: emptyList())
         logger.info { "$eventId: Sent HTTP response: \n$response" }
     }
 
