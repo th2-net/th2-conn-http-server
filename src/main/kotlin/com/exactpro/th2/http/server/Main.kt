@@ -181,7 +181,8 @@ class Main {
             val keystorePass: String = "",
             val keystorePath: String = "",
             val keystoreType: String = "JKS",
-            val keyManagerAlgorithm: String = "SunX509"
+            val keyManagerAlgorithm: String = "SunX509",
+            val catchClientClosing: Boolean = true
         )
 
         private inline fun <reified T> load(defaultImpl: Class<out T>): T {

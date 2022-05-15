@@ -28,6 +28,7 @@ import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpHeaders
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
+import rawhttp.core.errors.InvalidHttpRequest
 import java.io.File
 import java.net.ServerSocket
 import java.net.Socket
@@ -155,7 +156,19 @@ class Th2ServerOptions(
     }
 
     override fun onError(message: String, clientID: String?, exception: Throwable) {
-        logger.error(exception) { message }
-        onEvent(createErrorEvent(message, exception), clientID)
+        when (exception) {
+            is InvalidHttpRequest -> {
+                if (!settings.catchClientClosing && exception.message=="No content" && exception.lineNumber == 0) {
+                    return
+                }
+                val newMessage = "Client closed connection. $message."
+                logger.error(exception) { newMessage }
+                onEvent(createErrorEvent(newMessage, exception), clientID)
+            }
+            else -> {
+                logger.error(exception) { message }
+                onEvent(createErrorEvent(message, exception), clientID)
+            }
+        }
     }
 }

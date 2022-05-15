@@ -16,12 +16,12 @@ package com.exactpro.th2.http.server
 
 import com.exactpro.th2.http.server.options.ServerOptions
 import com.exactpro.th2.http.server.util.LinkedData
-import com.exactpro.th2.http.server.util.tryCloseBody
 import mu.KotlinLogging
 import rawhttp.core.HttpVersion
 import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
+import rawhttp.core.body.BodyReader
 import java.io.IOException
 import java.lang.IllegalStateException
 import java.net.InetSocketAddress
@@ -118,11 +118,11 @@ class HttpServer(
         val request: RawHttpRequest = try {
             http.parseRequest(client.getInputStream(), (client.remoteSocketAddress as InetSocketAddress).address)
                 .eagerly()
+        } catch (e: SocketException) {
+            options.onError("Socket exception: $socket", parentEventId, e)
+            return
         } catch (e: Exception) {
-            when (e) {
-                is SocketException -> options.onError("Socket closed: $socket", parentEventId, e)
-                else -> options.onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", parentEventId, e)
-            }
+            options.onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", parentEventId, e)
             client.runCatching(Socket::close)
             return
         }
@@ -167,31 +167,29 @@ class HttpServer(
             }.getOrThrow()
             val uuid = linkedData.uuid
 
-            runCatching {
-                dialogManager.dialogues.remove(uuid)?.let {
-                    val finalResponse = options.prepareResponse(it.request, response)
-                    finalResponse.writeTo(it.socket.getOutputStream())
-
-                    options.onResponse(finalResponse)
+            dialogManager.dialogues.remove(uuid)?.let { dialogue ->
+                try {
+                    val finalResponse = options.prepareResponse(dialogue.request, response).also { it.writeTo(dialogue.socket.getOutputStream()) }
 
                     when {
-                        it.socket.keepAlive && !finalResponse.headers.getFirst("Connection").map { it.equals("close", true) }.orElse(false) -> {
-                            executorService.submit { handle(it.socket, it.eventID) }
+                        dialogue.socket.keepAlive && !finalResponse.headers.getFirst("Connection").map { it.equals("close", true) }.orElse(false) -> {
+                            executorService.submit { handle(dialogue.socket, dialogue.eventID) }
                         }
                         else -> {
-                            LOGGER.debug { "Closing socket (${it.socket.inetAddress}) from UUID: $uuid due last response." }
-                            it.socket.close()
+                            LOGGER.debug { "Closing socket (${dialogue.socket.inetAddress}) from UUID: $uuid due last response." }
+                            dialogue.socket.runCatching(Socket::close)
                         }
                     }
-                } ?: throw NullPointerException("No dialogue were found by uuid: $uuid")
-            }.onFailure {
-                when (it) {
-                    is SocketException -> throw SocketException("Failed to handle response, socket is broken. $socket . ${it.message}")
-                    else -> throw it
+
+                    options.onResponse(finalResponse)
+                } catch (e: SocketException) {
+                    options.onError("Failed to handle response, socket is broken. $socket", dialogue.eventID, e)
+                } catch (e: Exception) {
+                    options.onError("Cannot handle response due exception", dialogue.eventID, e)
                 }
-            }.getOrThrow()
+            } ?: throw IllegalArgumentException("No dialogue were found by uuid: $uuid")
         } finally {
-            response.tryCloseBody()
+            response.body.ifPresent { it.runCatching(BodyReader::close) }
         }
     }
 
