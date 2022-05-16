@@ -107,7 +107,7 @@ class Th2ServerOptions(
 
         storeEvent("Received HTTP request", parentEventID, uuid, listOf(rawMessage.metadata.id))
 
-        logger.info { "HTTP request was sent to mq, parentEventID: $parentEventID | uuid: $uuid" }
+        logger.debug { "HTTP request was sent to mq, parentEventID: $parentEventID | uuid: $uuid" }
     }
 
 
@@ -125,13 +125,13 @@ class Th2ServerOptions(
 
         val th2Response = response.libResponse.get()
         val eventId = storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, th2Response.messagesId ?: emptyList())
-        logger.info { "$eventId: Sent HTTP response: \n$response" }
+        logger.debug { "$eventId: Sent HTTP response: \n$response" }
     }
 
     override fun onConnect(client: Socket): String {
         val msg = "Connected client: $client"
         val eventId = storeEvent(msg, null, null)
-        logger.info { "$msg | parentEventID: $eventId" }
+        logger.debug { "$msg | parentEventID: $eventId" }
         return eventId
     }
 

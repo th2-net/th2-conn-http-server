@@ -35,11 +35,9 @@ class DialogueManager(private val socketDelayCheck: Long) : Closeable {
     private val checkSockets = object : TimerTask() {
         override fun run() = dialogues.forEach { (key, value) ->
             value.socket.runCatching {
-                if (isClosed) {
+                if (isClosed && !isOutputShutdown) {
                     removeSocket(key)
                 }
-            }.onFailure {
-                removeSocket(key)
             }
         }
     }
