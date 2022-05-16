@@ -20,7 +20,7 @@ Main configuration is done via setting following properties in a custom configur
 
 ## USAGE NOTES
 
-Every response must contain Content-Length header, server will produce one if wasn't passed before. According [ibm documentation](https://www.ibm.com/docs/en/ibm-mq/9.0?topic=headers-content-length-http-entity-header)
+Every response must contain Content-Length header, server will produce one if wasn't passed before. According [rfc docs](https://www.rfc-editor.org/rfc/rfc7230#section-3.3.3)
 
 Please before production usage put your personal keystore in properties, it's not safe to use default keystore, only purpose of default one is test
 
