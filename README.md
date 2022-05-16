@@ -18,9 +18,11 @@ Main configuration is done via setting following properties in a custom configur
 + **catchClientClosing** - handle as error closing of socket without agreement (`true` by default)
 
 
-## NOTE
+## USAGE NOTES
 
-Please before production usage put your personal keystore in properties, its not safe to use default keystore, only purpose of default one is test
+Every response must contain Content-Length header, server will produce one if wasn't passed before. According [ibm documentation](https://www.ibm.com/docs/en/ibm-mq/9.0?topic=headers-content-length-http-entity-header)
+
+Please before production usage put your personal keystore in properties, it's not safe to use default keystore, only purpose of default one is test
 
 ### Configuration example
 ```yaml
