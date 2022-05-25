@@ -26,10 +26,10 @@ import java.net.Socket
 import java.util.concurrent.ExecutorService
 import javax.annotation.concurrent.ThreadSafe
 
-@ThreadSafe
-abstract class ServerOptions {
+private val logger = KotlinLogging.logger { ServerOptions::class.simpleName }
 
-    protected val logger = KotlinLogging.logger { this.javaClass.simpleName }
+@ThreadSafe
+interface ServerOptions {
 
     /**
      * Creates a server socket for a server to use
@@ -38,7 +38,7 @@ abstract class ServerOptions {
      * @throws IOException if an error occurs when binding the socket
      */
     @Throws(IOException::class)
-    abstract fun createSocket(): ServerSocket
+    fun createSocket(): ServerSocket
 
     /**
      * @return the [RawHttp] instance to use to parse requests and responses
@@ -52,27 +52,27 @@ abstract class ServerOptions {
      * @return executor service to use to run client-serving [Runnable]s. Each [Runnable] runs until
      * the connection with the client is closed or lost
      */
-    abstract fun createExecutorService(): ExecutorService
+    fun createExecutorService(): ExecutorService
 
     /**
      * Must be guaranteed to be thread-safe since it will be called from different threads
      *
      */
-    open fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) = Unit
+    fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) = Unit
 
     /**
      * Must be guaranteed to be thread-safe since it will be called from different threads
      *
      * @return response with specific changes or without them
      */
-    open fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<LinkedData>) = response
+    fun prepareResponse(request: RawHttpRequest, response: RawHttpResponse<LinkedData>) = response
 
-    open fun onResponse(response: RawHttpResponse<LinkedData>) = Unit
+    fun onResponse(response: RawHttpResponse<LinkedData>) = Unit
 
     /**
      * @return client id as [String]
      */
-    abstract fun onConnect(client: Socket) : String
+    fun onConnect(client: Socket) : String
 
-    open fun onError(message: String, clientID: String? = null, exception: Throwable) = logger.error(exception) { "[ClientID: $clientID] $message" }
+    fun onError(message: String, exception: Throwable, clientID: String? = null) = logger.error(exception) { "[ClientID: $clientID] $message" }
 }

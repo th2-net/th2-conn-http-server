@@ -24,11 +24,8 @@ fun createErrorEvent(message: String, exception: Throwable, messageIDs: List<Mes
     type("Error")
     status(Event.Status.FAILED )
 
-    var error: Throwable? = exception
-
-    while (error != null) {
+    generateSequence(exception, Throwable::cause).forEach { error ->
         bodyData(EventUtils.createMessageBean(error.message))
-        error = error.cause
     }
 
     messageIDs.forEach(this::messageID)

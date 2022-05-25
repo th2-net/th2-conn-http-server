@@ -28,10 +28,10 @@ open class BasicStateManager : IStateManager {
     private lateinit var server: RawHttpServer
     private lateinit var eventReporter: (event: Event, eventID: String?) -> String
 
-    override fun init(value: StateManagerContext) {
+    override fun init(context: StateManagerContext) {
         check(!::server.isInitialized) { "Response manager is already initialized" }
-        server = value.server
-        eventReporter = value.onEvent
+        server = context.server
+        eventReporter = context.onEvent
     }
 
 

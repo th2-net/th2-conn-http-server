@@ -24,6 +24,7 @@ import com.exactpro.th2.http.server.api.IStateManager
 import com.exactpro.th2.http.server.util.LinkedData
 import com.exactpro.th2.http.server.util.createErrorEvent
 import com.exactpro.th2.http.server.util.toRawMessage
+import mu.KotlinLogging
 import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpHeaders
 import rawhttp.core.RawHttpRequest
@@ -45,17 +46,18 @@ import javax.net.ssl.SSLContext
 
 class Th2ServerOptions(
     private val settings: MicroserviceSettings,
-    private val connectionID: ConnectionID,
     private val stateManager: IStateManager,
     private val onRequest: (message: RawMessage) -> Unit,
     private val onResponse: (message: RawMessage) -> Unit,
     private val onEvent: (event: Event, parentEventID: String?) -> String,
-) : ServerOptions() {
+) : ServerOptions {
 
     private val socketFactory: ServerSocketFactory = createFactory()
 
     private val generateSequenceRequest = sequenceGenerator()
     private val generateSequenceResponse = sequenceGenerator()
+
+    private val connectionID = ConnectionID.newBuilder().setSessionAlias(settings.sessionAlias).build()
 
     override fun createSocket(): ServerSocket {
         val port = settings.port ?: if (settings.https) 443 else 80
@@ -64,30 +66,29 @@ class Th2ServerOptions(
     }
 
     private fun createFactory(): ServerSocketFactory {
-        if (settings.https) {
-            val passphrase = settings.keystorePass.toCharArray()
-            val ctx: SSLContext = SSLContext.getInstance(settings.sslProtocol)
-            val kmf: KeyManagerFactory = KeyManagerFactory.getInstance(settings.keyManagerAlgorithm)
-            val ks: KeyStore = KeyStore.getInstance(settings.keystoreType)
-            if (settings.keystorePath.isEmpty()) {
-                this::class.java.classLoader.getResourceAsStream("defaultkeystore").use { ks.load(it, passphrase) }
-            } else {
-                File(settings.keystorePath).inputStream().use {
-                    ks.load(it, passphrase)
-                }
-            }
-
-            kmf.init(ks, passphrase)
-            ctx.init(kmf.keyManagers, null, null)
-            return ctx.serverSocketFactory
+        if (!settings.https) {
+            return ServerSocketFactory.getDefault()
         }
-        return ServerSocketFactory.getDefault()
+        val passphrase = settings.keystorePass.toCharArray()
+        val ctx: SSLContext = SSLContext.getInstance(settings.sslProtocol)
+        val kmf: KeyManagerFactory = KeyManagerFactory.getInstance(settings.keyManagerAlgorithm)
+        val ks: KeyStore = KeyStore.getInstance(settings.keystoreType)
+        when {
+            settings.keystorePath.isEmpty() -> this::class.java.classLoader.getResourceAsStream("defaultkeystore").use { ks.load(it, passphrase) }
+            else -> File(settings.keystorePath).inputStream().use {
+                ks.load(it, passphrase)
+            }
+        }
+
+        kmf.init(ks, passphrase)
+        ctx.init(kmf.keyManagers, null, null)
+        return ctx.serverSocketFactory
     }
 
     override fun createExecutorService(): ExecutorService {
         logger.trace { "Created Executor service" }
         val threadCount = AtomicInteger(1)
-        return Executors.newFixedThreadPool(settings.threads) { runnable: Runnable? ->
+        return Executors.newFixedThreadPool(settings.threads) { runnable: Runnable ->
             Thread(runnable).apply {
                 isDaemon = true
                 name = "th2-http-server-${threadCount.incrementAndGet()}"
@@ -155,7 +156,7 @@ class Th2ServerOptions(
         return onEvent(event, eventId)
     }
 
-    override fun onError(message: String, clientID: String?, exception: Throwable) {
+    override fun onError(message: String, exception: Throwable, clientID: String?) {
         when (exception) {
             is InvalidHttpRequest -> {
                 if (!settings.catchClientClosing && exception.message=="No content" && exception.lineNumber == 0) {
@@ -170,5 +171,9 @@ class Th2ServerOptions(
                 onEvent(createErrorEvent(message, exception), clientID)
             }
         }
+    }
+
+    companion object {
+        private val logger = KotlinLogging.logger { Th2ServerOptions::class.simpleName }
     }
 }

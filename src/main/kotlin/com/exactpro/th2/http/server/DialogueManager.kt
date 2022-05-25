@@ -27,10 +27,13 @@ private val LOGGER = KotlinLogging.logger { }
 /**
  * Trying to check socket status and removing it if closed
  */
-class DialogueManager(private val socketDelayCheck: Long) : Closeable {
+class DialogueManager(socketDelayCheck: Long) : Closeable {
 
-    val dialogues = ConcurrentHashMap<String, Dialogue>()
+    private val dialogues = ConcurrentHashMap<String, Dialogue>()
     private val cleaner = Timer()
+
+    val size
+        get() = dialogues.size
 
     private val checkSockets = object : TimerTask() {
         override fun run() = dialogues.forEach { (key, value) ->
@@ -42,9 +45,18 @@ class DialogueManager(private val socketDelayCheck: Long) : Closeable {
         }
     }
 
+    init {
+        cleaner.schedule(checkSockets, socketDelayCheck * 1000, socketDelayCheck * 1000)
+    }
+
     fun removeSocket(key: String) = dialogues.remove(key).apply { LOGGER.debug("Inactive socket [$key] was removed from store") }
 
-    fun startCleaner() = cleaner.schedule(checkSockets, socketDelayCheck * 1000, socketDelayCheck * 1000)
+    fun createDialogue(uuid: String, request: RawHttpRequest, socket: Socket, eventID: String): Dialogue = Dialogue(request, socket, eventID).also {
+        this.dialogues[uuid] = it
+        LOGGER.trace { "Dialogue was created and stored: $uuid" }
+    }
+
+    fun removeDialogue(uuid: String) = this.dialogues.remove(uuid)
 
     override fun close() {
         cleaner.cancel()

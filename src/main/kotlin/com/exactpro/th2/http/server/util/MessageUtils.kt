@@ -93,7 +93,7 @@ private fun RawHttpRequest.toRawMessage(connectionId: ConnectionID, direction: D
 
 private fun RawHttpResponse<LinkedData>.toRawMessage(connectionId: ConnectionID, direction: Direction, sequence: Long): RawMessage {
     val metadataProperties = mapOf("http" to startLine.httpVersion.toString(), "code" to startLine.statusCode.toString(), "reason" to startLine.reason)
-    val eventId = this.libResponse.get().eventId?.id
+    val eventId = this.libResponse.get().eventId.id
     return ByteArrayOutputStream().run {
         startLine.writeTo(this)
         headers.writeTo(this)
@@ -109,7 +109,7 @@ fun MessageGroup.getFirstParentEventID() = messagesList.firstNotNullOfOrNull {
     when {
         it.hasRawMessage() -> it.rawMessage.parentEventId?.id
         it.hasMessage() -> it.message.parentEventId?.id
-        else -> throw IllegalStateException("Cannot handle message kind: ${it.kindCase}")
+        else -> error("Cannot handle message kind: ${it.kindCase}")
     }
 }
 
@@ -117,6 +117,6 @@ fun MessageGroup.getMessageIDs() = messagesList.mapNotNull {
     when {
         it.hasRawMessage() -> it.rawMessage.metadata?.id
         it.hasMessage() -> it.message.metadata?.id
-        else -> throw IllegalStateException("Cannot handle message kind: ${it.kindCase}")
+        else -> error("Cannot handle message kind: ${it.kindCase}")
     }
 }

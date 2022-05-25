@@ -23,7 +23,7 @@ import rawhttp.core.RawHttpResponse
 
 interface IStateManager : AutoCloseable {
 
-    fun init(value: StateManagerContext)
+    fun init(context: StateManagerContext)
 
     fun onRequest(request: RawHttpRequest, uuid: String)
 
@@ -31,7 +31,7 @@ interface IStateManager : AutoCloseable {
 
     data class StateManagerContext(
         val server: RawHttpServer,
-        val stateEventId: String,
+        val parentEventId: String,
         val onEvent: (event: Event, parentEventID: String?) -> String
     )
 }

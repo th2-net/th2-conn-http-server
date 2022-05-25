@@ -94,7 +94,6 @@ class Main {
             messageRouter: MessageRouter<MessageGroupBatch>,
             registerResource: (name: String, destructor: () -> Unit) -> Unit
         ) {
-            val connectionId = ConnectionID.newBuilder().setSessionAlias(settings.sessionAlias).build()
 
             val rootEventId = eventRouter.storeEvent(Event.start().apply {
                 endTimestamp()
@@ -106,7 +105,6 @@ class Main {
 
             val options = Th2ServerOptions(
                 settings,
-                connectionId,
                 stateManager,
                 { messageRouter.send(it, QueueAttribute.SECOND.toString()) },
                 { messageRouter.send(it, QueueAttribute.FIRST.toString()) },
@@ -130,9 +128,7 @@ class Main {
                         continue
                     }
 
-                    server.runCatching {
-                        handleResponse(response)
-                    }.onFailure {
+                    response.runCatching(server::handleResponse).onFailure {
                         val uuid = response.libResponse.get().uuid
                         LOGGER.error(it) { "Can't handle response with uuid: $uuid" }
                         eventStore(
@@ -153,10 +149,10 @@ class Main {
 
             stateManager.runCatching {
                 registerResource("state-manager", ::close)
-                val stateManagerEvent = eventRouter.storeEvent(Event.start().apply {
-                    endTimestamp()
-                    name("STATE MANAGER")
-                }, rootEventId).id
+                val stateManagerEvent =  eventStore(
+                    Event.start().endTimestamp().name("State manager"),
+                    rootEventId
+                )
                 init(StateManagerContext(server, stateManagerEvent, eventStore))
             }.onFailure {
                 LOGGER.error(it) { "Failed to init state-manager" }
@@ -171,10 +167,10 @@ class Main {
         }
 
         data class MicroserviceSettings(
-            val port: Int? = null,
+            val https: Boolean = false,
+            val port: Int? = if (https) 443 else 80,
             val sessionAlias: String,
             val threads: Int = 24,
-            val https: Boolean = false,
             val terminationTime: Long = 30,
             val socketDelayCheck: Long = 15,
             val sslProtocol: String = "TLSv1.3",

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
+ * Copyright 2022-2022 Exactpro (Exactpro Systems Limited)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -40,8 +40,8 @@ class HttpServer(
 ) : RawHttpServer {
 
     @Volatile
-    private var active: AtomicBoolean = AtomicBoolean(false)
-    private val dialogManager: DialogueManager = DialogueManager(socketDelayCheck)
+    private var active = AtomicBoolean(false)
+    private val dialogManager = DialogueManager(socketDelayCheck)
 
     private var socket: ServerSocket = options.createSocket()
     private val executorService: ExecutorService = options.createExecutorService()
@@ -49,43 +49,33 @@ class HttpServer(
     private val http: RawHttp = options.getRawHttp()
 
     override fun start() {
-        if (active.get()) {
-            LOGGER.warn { "Server already started" }
-            return
+        if (!active.compareAndSet(false, true)) {
+            error("Server is already started")
         }
-        active.set(true)
-
-        Thread({
-            LOGGER.info { "Server started" }
-            listen()
-        }, "th2-conn-http-server").start()
-
-        dialogManager.startCleaner()
+        Thread(::listen, "th2-conn-http-server").start()
+        LOGGER.info { "Server started" }
     }
 
     private fun listen() {
         while (active.get()) {
             socket.runCatching(ServerSocket::accept)
                 .onFailure {
-                    if (active.get()) {
-                        when (it) {
-                            is SocketException -> {
-                                options.onError("Broken or closed server socket!", exception = it)
-                                recreateSocket()
-                            }
-                            else -> {
-                                options.onError("Failed to accept client socket", exception = it)
-                                if (socket.isClosed) recreateSocket()
-                            }
+                    when {
+                        !active.get() -> LOGGER.warn(it) { "Server was stopped which lead to the following to error: " }
+                        it is SocketException -> {
+                            options.onError("Broken or closed server socket!", exception = it)
+                            recreateSocket()
                         }
-                    } else {
-                        LOGGER.warn(it) { "Server was stopped that leaded to errors: " }
+                        else -> {
+                            options.onError("Failed to accept client socket", exception = it)
+                            if (socket.isClosed) recreateSocket()
+                        }
+
                     }
                 }.onSuccess { client ->
-                    executorService.submit {
-                        val eventId = options.onConnect(client)
+                    executorService.execute {
                         runCatching {
-                            handle(client, eventId)
+                            handle(client, options.onConnect(client))
                         }.onFailure {
                             options.onError("Failed to handle client socket", exception = it)
                         }
@@ -111,7 +101,7 @@ class HttpServer(
      */
     private fun handle(client: Socket, parentEventId: String) {
         if (!client.isConnected || client.isClosed || client.isInputShutdown) {
-            options.onError("Cannot handle socket [closed]: $socket", parentEventId, IllegalStateException())
+            options.onError("Cannot handle socket [closed]: $socket", IllegalStateException(), parentEventId)
             return
         }
 
@@ -119,10 +109,10 @@ class HttpServer(
             http.parseRequest(client.getInputStream(), (client.remoteSocketAddress as InetSocketAddress).address)
                 .eagerly()
         } catch (e: SocketException) {
-            options.onError("Socket exception: $socket", parentEventId, e)
+            options.onError("Socket exception: $socket", e, parentEventId)
             return
         } catch (e: Exception) {
-            options.onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", parentEventId, e)
+            options.onError("Failed to handle request. Socket keep-alive: ${client.keepAlive}", e, parentEventId)
             client.runCatching(Socket::close)
             return
         }
@@ -131,25 +121,14 @@ class HttpServer(
 
         LOGGER.debug { "Request from socket: $client was received: \ngenerated uuid: $uuid \n$request" }
 
-        var keepAlive = false
-        when {
-            request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1) -> {
-                request.headers.getFirst("Connection").ifPresent {
-                    keepAlive = it.equals("keep-alive", true)
-                }
-            }
-            else -> {
-                request.headers.getFirst("Connection").let {
-                    keepAlive = !(it.isPresent && it.get().equals("close", true))
-                }
-            }
+        val keepAlive = when(request.headers["Connection"].firstOrNull()?.lowercase()) {
+            "keep-alive" -> true
+            "close" -> false
+            else -> !request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1)
         }
 
         client.keepAlive = keepAlive
-        Dialogue(request, client, parentEventId).also {
-            dialogManager.dialogues[uuid] = it
-            LOGGER.trace { "Dialogue was created and stored: $uuid" }
-        }
+        dialogManager.createDialogue(uuid, request, client, parentEventId)
 
         additionalExecutors.submit {
             options.runCatching {
@@ -162,18 +141,17 @@ class HttpServer(
 
     override fun handleResponse(response: RawHttpResponse<LinkedData>) {
         try {
-            val linkedData: LinkedData = response.runCatching { libResponse.get() }.onFailure {
-                options.onError("Can't handle response without linked uuid information", exception = it)
-            }.getOrThrow()
-            val uuid = linkedData.uuid
+            val uuid = response.libResponse.orElseGet {
+                error("Can't handle response without linked uuid information")
+            }.uuid
 
-            dialogManager.dialogues.remove(uuid)?.let { dialogue ->
+            dialogManager.removeDialogue(uuid)?.let { dialogue ->
                 try {
                     val finalResponse = options.prepareResponse(dialogue.request, response).also { it.writeTo(dialogue.socket.getOutputStream()) }
 
                     when {
-                        dialogue.socket.keepAlive && !finalResponse.headers.getFirst("Connection").map { it.equals("close", true) }.orElse(false) -> {
-                            executorService.submit { handle(dialogue.socket, dialogue.eventID) }
+                        dialogue.socket.keepAlive && !finalResponse.headers["Connection"].firstOrNull().equals("close", true) -> {
+                            executorService.execute { handle(dialogue.socket, dialogue.eventID) }
                         }
                         else -> {
                             LOGGER.debug { "Closing socket (${dialogue.socket.inetAddress}) from UUID: $uuid due last response." }
@@ -183,9 +161,9 @@ class HttpServer(
 
                     options.onResponse(finalResponse)
                 } catch (e: SocketException) {
-                    options.onError("Failed to handle response, socket is broken. $socket", dialogue.eventID, e)
+                    options.onError("Failed to handle response, socket is broken. $socket", e, dialogue.eventID)
                 } catch (e: Exception) {
-                    options.onError("Cannot handle response due exception", dialogue.eventID, e)
+                    options.onError("Cannot handle response due exception", e, dialogue.eventID)
                 }
             } ?: throw IllegalArgumentException("No dialogue were found by uuid: $uuid")
         } finally {
@@ -210,15 +188,10 @@ class HttpServer(
 
     private fun ExecutorService.awaitShutdown(terminationTime: Long, onTimeout: () -> Unit) {
         shutdown()
-        if (!isTerminated) {
-            if (terminationTime > 0 && !awaitTermination(terminationTime, TimeUnit.SECONDS)) {
-                shutdownNow()
-            } else {
-                shutdownNow()
-            }
+        if (!awaitTermination(terminationTime, TimeUnit.SECONDS)) {
+            shutdownNow()
             onTimeout()
         }
-
     }
 
     companion object {

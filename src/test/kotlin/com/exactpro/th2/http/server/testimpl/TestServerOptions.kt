@@ -17,6 +17,7 @@ package com.exactpro.th2.http.server.testimpl
 import com.exactpro.th2.http.server.GlobalVariables
 import com.exactpro.th2.http.server.options.ServerOptions
 import com.exactpro.th2.http.server.util.LinkedData
+import mu.KotlinLogging
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.net.ServerSocket
@@ -32,7 +33,7 @@ import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 
 
-class TestServerOptions(private val https: Boolean = false) : ServerOptions() {
+class TestServerOptions(private val https: Boolean = false) : ServerOptions {
     var queue = ArrayBlockingQueue<String>(100)
 
     override fun createSocket(): ServerSocket {
@@ -79,4 +80,7 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions() {
         return "TestEventID"
     }
 
+    companion object {
+        private val logger = KotlinLogging.logger { TestServerOptions::class.simpleName }
+    }
 }

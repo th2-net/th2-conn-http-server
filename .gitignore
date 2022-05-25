@@ -91,3 +91,5 @@ bin/
 .project
 .settings/org.eclipse.jdt.core.prefs
 .classpath
+*.analysis/
+*.hprof

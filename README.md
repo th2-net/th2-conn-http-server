@@ -6,7 +6,7 @@ This microservice allows performing HTTP responses and receive HTTP requests.
 
 Main configuration is done via setting following properties in a custom configuration:
 + **https** - set protocol for communication, `true` if you want to use `https` (`false` by default)
-+ **port** - port for HTTP requests (null by default) - if null `80` or `443` will be used depending on https property
++ **port** - port for HTTP requests (`80` by default or `443` if `https` = `true`)
 + **sessionAlias** - session alias for incoming/outgoing TH2 messages (e.g. `rest_api`)
 + **threads** - number of socket-processing threads
 + **terminationTime** - the specified time to wait for the executors to close (`30` by default)
@@ -15,14 +15,14 @@ Main configuration is done via setting following properties in a custom configur
 + **keystorePath** - path to new keystore (by default its using one from resources)
 + **keystoreType** - type of keystore (`JKS` by default)
 + **keyManagerAlgorithm** - type of keystore algorithm (`SunX509` by default)
-+ **catchClientClosing** - handle as error closing of socket without agreement (`true` by default)
++ **catchClientClosing** - treat unexpected socket closure as error (`true` by default)
 
 
 ## USAGE NOTES
 
-Every response must contain Content-Length header, server will produce one if wasn't passed before. According [rfc docs](https://www.rfc-editor.org/rfc/rfc7230#section-3.3.3)
+Every response must contain `Content-Length` header, otherwise server will produce one according to [section 3.3.3 of RFC 7230](https://www.rfc-editor.org/rfc/rfc7230#section-3.3.3)
 
-Please before production usage put your personal keystore in properties, it's not safe to use default keystore, only purpose of default one is test
+For production usage please specify your own keystore. Default one should only be used for test purposes
 
 ### Configuration example
 ```yaml
@@ -90,7 +90,7 @@ metadata:
   name: http-server
 spec:
   image-name: ghcr.io/th2-net/th2-conn-http-server
-  image-version: 0.2.0
+  image-version: 1.0.0
   custom-config:
     https: false
     port: 8080
