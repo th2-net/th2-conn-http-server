@@ -30,11 +30,11 @@ import com.exactpro.th2.http.server.api.IStateManager.StateManagerContext
 import com.exactpro.th2.http.server.api.IStateManagerSettings
 import com.exactpro.th2.http.server.api.impl.BasicStateManager
 import com.exactpro.th2.http.server.options.Th2ServerOptions
-import com.exactpro.th2.http.server.util.ResponseBuilder
 import com.exactpro.th2.http.server.util.createErrorEvent
 import com.exactpro.th2.http.server.util.getFirstParentEventID
 import com.exactpro.th2.http.server.util.getMessageIDs
 import com.exactpro.th2.http.server.util.getParentEventId
+import com.exactpro.th2.http.server.util.toResponse
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
@@ -124,7 +124,7 @@ class Main {
             val listener = MessageListener<MessageGroupBatch> { _, batch ->
                 for (messageGroup in batch.groupsList) {
                     val response = try {
-                        ResponseBuilder().setGroup(messageGroup).build()
+                        messageGroup.toResponse()
                     } catch (e: Exception) {
                         LOGGER.error(e) { "Can't parse message group to response" }
                         messageGroup.getParentEventId().forEach { parentEventID ->

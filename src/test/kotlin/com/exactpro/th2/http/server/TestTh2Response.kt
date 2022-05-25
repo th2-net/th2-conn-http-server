@@ -14,7 +14,6 @@
 
 package com.exactpro.th2.http.server
 
-import com.exactpro.th2.common.grpc.AnyMessage
 import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.Message
 import com.exactpro.th2.common.grpc.MessageGroup
@@ -22,7 +21,8 @@ import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.message.addField
 import com.exactpro.th2.common.message.addFields
 import com.exactpro.th2.common.message.message
-import com.exactpro.th2.http.server.util.ResponseBuilder
+import com.exactpro.th2.common.message.plusAssign
+import com.exactpro.th2.http.server.util.toResponse
 import com.google.protobuf.ByteString
 import mu.KotlinLogging
 import org.junit.jupiter.api.Assertions
@@ -35,17 +35,16 @@ class TestTh2Response {
     @Test
     fun contentLengthTest() {
         // Auto generation of content length and content type overwrite check
-        val response = ResponseBuilder().setHead(
-            createHeadMessage(
+        val response = MessageGroup.newBuilder().apply {
+            this += createHeadMessage(
                 500, uuid = "test-uuid",
                 reason = "Test reason"
             )
-        ).setBody(
-            createBodyMessage(
+            this += createBodyMessage(
                 body = "SOME BYTES".toByteArray(),
                 contentType = "application"
             )
-        ).build()
+        }.toResponse()
 
         Assertions.assertTrue(response.libResponse.isPresent)
         Assertions.assertEquals(500, response.statusCode)
@@ -57,17 +56,16 @@ class TestTh2Response {
 
     @Test
     fun overwriteTest() {
-        val response = ResponseBuilder().setHead(
-            createHeadMessage(
+        val response = MessageGroup.newBuilder().apply {
+            this += createHeadMessage(
                 404, uuid = "0-0-0-0-0",
                 reason = "Non",
                 bonusHeaders =  mutableListOf(Header("content-length", "4"))
             )
-        ).setBody(
-            createBodyMessage(
+            this += createBodyMessage(
                 body = "SOME BYTES".toByteArray()
             )
-        ).build()
+        }.toResponse()
 
         Assertions.assertTrue(response.libResponse.isPresent)
         Assertions.assertEquals(404, response.statusCode)
@@ -81,15 +79,14 @@ class TestTh2Response {
     @Test
     fun autoGenerationTest() {
         // Auto generation check
-        val response = ResponseBuilder().setHead(
-            createHeadMessage(
+        val response = MessageGroup.newBuilder().apply {
+            this += createHeadMessage(
                 uuid = "0-0-0-0-0"
             )
-        ).setBody(
-            createBodyMessage(
+            this += createBodyMessage(
                 body = "SOME BYTES".toByteArray(),
             )
-        ).build()
+        }.toResponse()
 
         Assertions.assertTrue(response.libResponse.isPresent)
         Assertions.assertEquals(200, response.statusCode)
@@ -107,12 +104,12 @@ class TestTh2Response {
         headers.add(Header("cookie", "cookie-test"))
         headers.add(Header("test", "value=test-value;somevalue=sometest-value;"))
         // + content length header by default
-        val response = ResponseBuilder().setHead(
-            createHeadMessage(
+        val response = MessageGroup.newBuilder().apply {
+            this += createHeadMessage(
                 uuid = "0-0-0-0-0",
                 bonusHeaders = headers
             )
-        ).build()
+        }.toResponse()
 
         LOGGER.debug( response.headers.toString())
 
@@ -133,14 +130,14 @@ class TestTh2Response {
         // Test for UUID required
         Assertions.assertThrows(
             stateException,
-            { ResponseBuilder().setHead(createHeadMessage()).build() },
+            { MessageGroup.newBuilder().apply { this += createHeadMessage() }.toResponse() },
             "UUID must be non null, Th2Response must throw error"
         )
 
         // Test for Response header message type required
         Assertions.assertThrows(
             stateException,
-            { ResponseBuilder().setHead(createHeadMessage(uuid = "0-0-0-0-0", headType = "WrongType")) },
+            { MessageGroup.newBuilder().apply { this += createHeadMessage(uuid = "0-0-0-0-0", headType = "WrongType") }.toResponse() },
             "Type of head message must be response, Th2Response must throw error if there another type of message"
         )
 
@@ -148,15 +145,10 @@ class TestTh2Response {
         Assertions.assertThrows(
             stateException,
             {
-                ResponseBuilder().setGroup(
-                    MessageGroup.newBuilder()
-                        .addMessages(
-                            AnyMessage.newBuilder()
-                                .mergeMessage(createHeadMessage(uuid = "0-0-0-0-0", headType = "WrongType")).build()
-                        )
-                        .addMessages(AnyMessage.newBuilder().mergeRawMessage(createBodyMessage()).build())
-                        .build()
-                )
+                MessageGroup.newBuilder().apply {
+                    this += createHeadMessage(uuid = "0-0-0-0-0", headType = "WrongType")
+                    this += createBodyMessage()
+                }.toResponse()
             },
             "Type of head message must be response, Th2Response must throw error if there another type of message"
         )
@@ -165,15 +157,10 @@ class TestTh2Response {
         Assertions.assertThrows(
             argumentException,
             {
-                ResponseBuilder().setGroup(
-                    MessageGroup.newBuilder()
-                        .addMessages(AnyMessage.newBuilder().mergeRawMessage(createBodyMessage()).build())
-                        .addMessages(
-                            AnyMessage.newBuilder()
-                                .mergeMessage(createHeadMessage(uuid = "0-0-0-0-0", headType = "WrongType")).build()
-                        )
-                        .build()
-                )
+                MessageGroup.newBuilder().apply {
+                    this += createBodyMessage()
+                    this += createHeadMessage(uuid = "0-0-0-0-0", headType = "WrongType")
+                }.toResponse()
             },
             "Type of head message must be response, Th2Response must throw error if there another type of message"
         )
