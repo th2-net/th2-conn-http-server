@@ -178,6 +178,7 @@ dependencies {
     implementation group: 'io.github.microutils', name: 'kotlin-logging', version: '1.7.9'
     implementation group: 'com.athaydes.rawhttp', name: 'rawhttp-core', version: '2.4.1'
     implementation group: 'com.fasterxml.jackson.module', name: 'jackson-module-kotlin', version: '2.11.2'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
 
     testImplementation 'com.exactpro.th2:conn-http-client:0.6.0-mutlisocket-2256877175-SNAPSHOT'
     testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter', version: '5.6.0'

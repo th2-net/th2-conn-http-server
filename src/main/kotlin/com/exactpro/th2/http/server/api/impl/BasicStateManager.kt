@@ -19,6 +19,7 @@ import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.http.server.api.IStateManager
 import com.exactpro.th2.http.server.api.IStateManager.StateManagerContext
 import com.exactpro.th2.http.server.RawHttpServer
+import com.exactpro.th2.http.server.api.IStateManagerSettings
 import com.exactpro.th2.http.server.util.LinkedData
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
@@ -27,8 +28,9 @@ open class BasicStateManager : IStateManager {
 
     private lateinit var server: RawHttpServer
     private lateinit var eventReporter: (event: Event, eventID: String?) -> String
+    override val settingsClass: Class<out IStateManagerSettings> = IStateManagerSettings::class.java
 
-    override fun init(context: StateManagerContext) {
+    override fun init(context: StateManagerContext, customSettings: IStateManagerSettings) {
         check(!::server.isInitialized) { "Response manager is already initialized" }
         server = context.server
         eventReporter = context.onEvent

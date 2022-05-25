@@ -74,5 +74,5 @@ interface ServerOptions {
      */
     fun onConnect(client: Socket) : String
 
-    fun onError(message: String, exception: Throwable, clientID: String? = null) = logger.error(exception) { "[ClientID: $clientID] $message" }
+    fun onError(message: String, exception: Throwable?, clientID: String? = null) = logger.error(exception) { "[ClientID: $clientID] $message" }
 }

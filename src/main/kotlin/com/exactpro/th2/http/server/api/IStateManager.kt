@@ -15,7 +15,6 @@
 package com.exactpro.th2.http.server.api
 
 import com.exactpro.th2.common.event.Event
-import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.http.server.RawHttpServer
 import com.exactpro.th2.http.server.util.LinkedData
 import rawhttp.core.RawHttpRequest
@@ -23,7 +22,9 @@ import rawhttp.core.RawHttpResponse
 
 interface IStateManager : AutoCloseable {
 
-    fun init(context: StateManagerContext)
+    val settingsClass: Class<out IStateManagerSettings>
+
+    fun init(context: StateManagerContext, customSettings: IStateManagerSettings)
 
     fun onRequest(request: RawHttpRequest, uuid: String)
 

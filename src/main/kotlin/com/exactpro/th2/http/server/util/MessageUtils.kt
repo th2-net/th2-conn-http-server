@@ -33,7 +33,6 @@ import com.google.protobuf.util.JsonFormat
 import rawhttp.core.RawHttpRequest
 import rawhttp.core.RawHttpResponse
 import java.io.ByteArrayOutputStream
-import java.lang.IllegalStateException
 import java.time.Instant
 
 private inline operator fun <T : Builder> T.invoke(block: T.() -> Unit) = apply(block)
@@ -120,3 +119,11 @@ fun MessageGroup.getMessageIDs() = messagesList.mapNotNull {
         else -> error("Cannot handle message kind: ${it.kindCase}")
     }
 }
+
+fun MessageGroup.getParentEventId() = messagesList.mapNotNull {
+    when {
+        it.hasRawMessage() -> it.rawMessage.parentEventId?.id
+        it.hasMessage() -> it.message.parentEventId?.id
+        else -> error("Cannot handle message kind: ${it.kindCase}")
+    }
+}.toSet()

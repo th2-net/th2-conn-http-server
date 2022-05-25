@@ -18,15 +18,18 @@ import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.MessageID
 
-fun createErrorEvent(message: String, exception: Throwable, messageIDs: List<MessageID> = emptyList()): Event = Event.start().apply {
+fun createErrorEvent(message: String, exception: Throwable? = null, messageIDs: List<MessageID> = emptyList()): Event = Event.start().apply {
     endTimestamp()
     name(message)
     type("Error")
     status(Event.Status.FAILED )
 
-    generateSequence(exception, Throwable::cause).forEach { error ->
-        bodyData(EventUtils.createMessageBean(error.message))
+    exception?.let {
+        generateSequence(exception, Throwable::cause).forEach { error ->
+            bodyData(EventUtils.createMessageBean(error.message))
+        }
     }
 
     messageIDs.forEach(this::messageID)
 }
+

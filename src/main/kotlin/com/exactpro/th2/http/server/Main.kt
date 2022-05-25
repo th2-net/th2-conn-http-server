@@ -15,7 +15,6 @@
 package com.exactpro.th2.http.server
 
 import com.exactpro.th2.common.event.Event
-import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.EventBatch
 import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.MessageGroupBatch
@@ -28,14 +27,19 @@ import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.common.schema.message.storeEvent
 import com.exactpro.th2.http.server.api.IStateManager
 import com.exactpro.th2.http.server.api.IStateManager.StateManagerContext
+import com.exactpro.th2.http.server.api.IStateManagerSettings
 import com.exactpro.th2.http.server.api.impl.BasicStateManager
 import com.exactpro.th2.http.server.options.Th2ServerOptions
 import com.exactpro.th2.http.server.util.ResponseBuilder
 import com.exactpro.th2.http.server.util.createErrorEvent
 import com.exactpro.th2.http.server.util.getFirstParentEventID
 import com.exactpro.th2.http.server.util.getMessageIDs
-import com.fasterxml.jackson.databind.json.JsonMapper
+import com.exactpro.th2.http.server.util.getParentEventId
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.module.SimpleModule
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedDeque
@@ -68,9 +72,11 @@ class Main {
 
             val stateManager = load<IStateManager>(BasicStateManager::class.java).apply { resources += "state-manager" to ::close }
 
-            val mapper = JsonMapper.builder()
-                .addModule(KotlinModule(nullIsSameAsDefault = true))
-                .build()
+            val mapper = ObjectMapper(YAMLFactory()).apply {
+                registerModule(KotlinModule(nullIsSameAsDefault = true))
+                registerModule(SimpleModule().addAbstractTypeMapping(IStateManagerSettings::class.java, stateManager.settingsClass))
+                configure(FAIL_ON_UNKNOWN_PROPERTIES, false)
+            }
 
             val settings = factory.getCustomConfiguration(MicroserviceSettings::class.java, mapper)
 
@@ -121,10 +127,12 @@ class Main {
                         ResponseBuilder().setGroup(messageGroup).build()
                     } catch (e: Exception) {
                         LOGGER.error(e) { "Can't parse message group to response" }
-                        eventStore(
-                            createErrorEvent("Can't parse message group to response", e, messageGroup.getMessageIDs()),
-                            messageGroup.getFirstParentEventID()
-                        )
+                        messageGroup.getParentEventId().forEach { parentEventID ->
+                            eventStore(
+                                createErrorEvent("Can't parse message group to response", e, messageGroup.getMessageIDs()),
+                                parentEventID
+                            )
+                        }
                         continue
                     }
 
@@ -153,7 +161,7 @@ class Main {
                     Event.start().endTimestamp().name("State manager"),
                     rootEventId
                 )
-                init(StateManagerContext(server, stateManagerEvent, eventStore))
+                init(StateManagerContext(server, stateManagerEvent, eventStore), settings.customSettings)
             }.onFailure {
                 LOGGER.error(it) { "Failed to init state-manager" }
                 eventStore(
@@ -178,7 +186,8 @@ class Main {
             val keystorePath: String = "",
             val keystoreType: String = "JKS",
             val keyManagerAlgorithm: String = "SunX509",
-            val catchClientClosing: Boolean = true
+            val catchClientClosing: Boolean = true,
+            val customSettings: IStateManagerSettings
         )
 
         private inline fun <reified T> load(defaultImpl: Class<out T>): T {

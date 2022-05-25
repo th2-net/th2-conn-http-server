@@ -156,8 +156,12 @@ class Th2ServerOptions(
         return onEvent(event, eventId)
     }
 
-    override fun onError(message: String, exception: Throwable, clientID: String?) {
+    override fun onError(message: String, exception: Throwable?, clientID: String?) {
         when (exception) {
+            null -> {
+                logger.error { message }
+                onEvent(createErrorEvent(message), clientID)
+            }
             is InvalidHttpRequest -> {
                 if (!settings.catchClientClosing && exception.message=="No content" && exception.lineNumber == 0) {
                     return
