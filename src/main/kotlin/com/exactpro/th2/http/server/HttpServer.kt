@@ -135,6 +135,7 @@ class HttpServer(
             }.onFailure {
                 LOGGER.error(it) { "Cannot execute options.onRequest hook" }
             }
+            request.body.ifPresent { it.runCatching(BodyReader::close) }
         }
     }
 
