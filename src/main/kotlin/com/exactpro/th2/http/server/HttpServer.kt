@@ -105,8 +105,7 @@ class HttpServer(
         }
 
         val request: RawHttpRequest = try {
-            http.parseRequest(client.getInputStream(), (client.remoteSocketAddress as InetSocketAddress).address)
-                .eagerly()
+            http.parseRequest(client.getInputStream(), (client.remoteSocketAddress as InetSocketAddress).address).eagerly()
         } catch (e: SocketException) {
             options.onError("Socket exception: $socket", e, parentEventId)
             return
@@ -135,7 +134,9 @@ class HttpServer(
             }.onFailure {
                 LOGGER.error(it) { "Cannot execute options.onRequest hook" }
             }
-            request.body.ifPresent { it.runCatching(BodyReader::close) }
+            if (!keepAlive) {
+                request.body.ifPresent { it.runCatching(BodyReader::close) }
+            }
         }
     }
 
