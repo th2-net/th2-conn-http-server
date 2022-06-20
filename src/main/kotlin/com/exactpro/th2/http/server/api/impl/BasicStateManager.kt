@@ -30,7 +30,7 @@ open class BasicStateManager : IStateManager {
     private lateinit var eventReporter: (event: Event, eventID: String?) -> String
     override val settingsClass: Class<out IStateManagerSettings> = IStateManagerSettings::class.java
 
-    override fun init(context: StateManagerContext, customSettings: IStateManagerSettings) {
+    override fun init(context: StateManagerContext, customSettings: IStateManagerSettings?) {
         check(!::server.isInitialized) { "Response manager is already initialized" }
         server = context.server
         eventReporter = context.onEvent

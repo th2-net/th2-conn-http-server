@@ -24,7 +24,7 @@ interface IStateManager : AutoCloseable {
 
     val settingsClass: Class<out IStateManagerSettings>
 
-    fun init(context: StateManagerContext, customSettings: IStateManagerSettings)
+    fun init(context: StateManagerContext, customSettings: IStateManagerSettings?)
 
     fun onRequest(request: RawHttpRequest, uuid: String)
 

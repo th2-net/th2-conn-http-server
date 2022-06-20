@@ -188,7 +188,7 @@ class Main {
             val keystoreType: String = "JKS",
             val keyManagerAlgorithm: String = "SunX509",
             val catchClientClosing: Boolean = true,
-            val customSettings: IStateManagerSettings
+            val customSettings: IStateManagerSettings?
         )
 
         private inline fun <reified T> load(defaultImpl: Class<out T>): T {
