@@ -61,8 +61,10 @@ class Th2ServerOptions(
 
     override fun createSocket(): ServerSocket {
         val port = settings.port ?: if (settings.https) 443 else 80
-        return socketFactory.createServerSocket(port)
-            .apply { logger.info("Created server socket on port:$port") }
+        return socketFactory.createServerSocket(port).apply {
+            this.soTimeout = settings.soTimeout
+            logger.info("Created server socket on port:$port")
+        }
     }
 
     private fun createFactory(): ServerSocketFactory {

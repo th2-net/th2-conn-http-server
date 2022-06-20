@@ -181,6 +181,7 @@ class Main {
             val threads: Int = 24,
             val terminationTime: Long = 30,
             val socketDelayCheck: Long = 15,
+            val soTimeout: Int = 10000,
             val sslProtocol: String = "TLSv1.3",
             val keystorePass: String = "",
             val keystorePath: String = "",
