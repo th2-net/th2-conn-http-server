@@ -62,7 +62,7 @@ class Th2ServerOptions(
     override fun createSocket(): ServerSocket {
         val port = settings.port ?: if (settings.https) 443 else 80
         return socketFactory.createServerSocket(port).apply {
-            this.soTimeout = settings.soTimeout
+            settings.serverSocketTimeout?.let(this::setSoTimeout)
             logger.info("Created server socket on port:$port")
         }
     }
@@ -132,6 +132,7 @@ class Th2ServerOptions(
     }
 
     override fun onConnect(client: Socket): String {
+        settings.clientSocketTimeout?.let(client::setSoTimeout)
         val msg = "Connected client: $client"
         val eventId = storeEvent(msg, null, null)
         logger.debug { "$msg | parentEventID: $eventId" }
