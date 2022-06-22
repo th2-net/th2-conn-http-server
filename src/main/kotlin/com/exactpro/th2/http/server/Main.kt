@@ -15,16 +15,16 @@
 package com.exactpro.th2.http.server
 
 import com.exactpro.th2.common.event.Event
+import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.EventBatch
-import com.exactpro.th2.common.grpc.MessageGroup
 import com.exactpro.th2.common.grpc.MessageGroupBatch
-import com.exactpro.th2.common.grpc.RawMessage
-import com.exactpro.th2.common.message.plusAssign
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageListener
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.common.schema.message.storeEvent
+import com.exactpro.th2.common.utils.event.EventBatcher
+import com.exactpro.th2.common.utils.event.MessageBatcherDirection
 import com.exactpro.th2.http.server.api.IStateManager
 import com.exactpro.th2.http.server.api.IStateManager.StateManagerContext
 import com.exactpro.th2.http.server.api.IStateManagerSettings
@@ -46,6 +46,7 @@ import java.util.concurrent.ConcurrentLinkedDeque
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 import java.util.ServiceLoader
+import java.util.concurrent.Executors
 
 private val LOGGER = KotlinLogging.logger { }
 
@@ -107,13 +108,37 @@ class Main {
                 type("Microservice")
             }).id
 
-            val eventStore = { event: Event, eventId: String? -> eventRouter.storeEvent(event, eventId ?: rootEventId).id }
+            val scheduledExecutorService = Executors.newScheduledThreadPool(1).also {
+                registerResource("Batcher scheduled executor", it::shutdownNow)
+            }
+
+            val eventBatcher = EventBatcher(settings.maxBatchSize, settings.maxFlushTime, scheduledExecutorService) { batch ->
+                eventRouter.send(batch)
+            }.also {
+                registerResource("Event batcher", it::close)
+            }
+
+            val eventStore = { event: Event, eventId: String? ->
+                event.toProtoEvent(eventId ?: rootEventId).also {
+                    eventBatcher.onEvent(it)
+                }.id.id
+            }
+
+            val messageBatcher = MessageBatcherDirection(settings.maxBatchSize, settings.maxFlushTime, scheduledExecutorService, onBatch = { batch, direction ->
+                messageRouter.send(batch, when(direction) {
+                    Direction.FIRST -> QueueAttribute.FIRST
+                    Direction.SECOND -> QueueAttribute.SECOND
+                    else -> error("Unsupported direction $direction")
+                }.toString())
+            }).also {
+                registerResource("Message batcher", it::close)
+            }
 
             val options = Th2ServerOptions(
                 settings,
                 stateManager,
-                { messageRouter.send(it, QueueAttribute.SECOND.toString()) },
-                { messageRouter.send(it, QueueAttribute.FIRST.toString()) },
+                { messageBatcher.onMessage(it, Direction.SECOND) },
+                { messageBatcher.onMessage(it, Direction.FIRST) },
                 eventStore
             )
 
@@ -189,7 +214,9 @@ class Main {
             val keystoreType: String = "JKS",
             val keyManagerAlgorithm: String = "SunX509",
             val catchClientClosing: Boolean = true,
-            val customSettings: IStateManagerSettings?
+            val customSettings: IStateManagerSettings?,
+            val maxBatchSize: Int = 100,
+            val maxFlushTime: Long = 1000
         )
 
         private inline fun <reified T> load(defaultImpl: Class<out T>): T {
@@ -201,12 +228,6 @@ class Main {
                 2 -> instances.first { !defaultImpl.isInstance(it) }
                 else -> error("More than 1 non-default instance of ${T::class.simpleName} has been found: $instances")
             }
-        }
-
-        private fun MessageRouter<MessageGroupBatch>.send(message: RawMessage, vararg attribute: String) {
-            sendAll(MessageGroupBatch.newBuilder().addGroups(MessageGroup.newBuilder().apply {
-                this += message
-            }).build(), *attribute)
         }
 
     }
