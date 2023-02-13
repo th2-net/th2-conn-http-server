@@ -71,8 +71,8 @@ private fun ByteArrayOutputStream.toRawMessage(
     this.parentEventIdBuilder.id = eventId
     this.metadataBuilder {
         putAllProperties(metadataProperties)
-        this.timestamp = Instant.now().toTimestamp()
         this.idBuilder {
+            this.timestamp = Instant.now().toTimestamp()
             this.connectionId = connectionId
             this.direction = direction
             this.sequence = sequence

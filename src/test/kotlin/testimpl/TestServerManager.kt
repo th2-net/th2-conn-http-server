@@ -39,7 +39,7 @@ private val LOGGER = KotlinLogging.logger { }
 
 open class TestServerManager(private val https: Boolean = false, socketDelayCheck: Long = 15, onError: (e: Throwable) -> Unit) {
     private val options = TestServerOptions(https)
-    private val eventStore = { _: String, _: String?, error: Throwable? ->
+    private val eventStore = { _: String, _: EventID?, error: Throwable? ->
         error?.let {
             onError(it)
             LOGGER.warn(it) {}
@@ -49,7 +49,7 @@ open class TestServerManager(private val https: Boolean = false, socketDelayChec
     private val th2server = Th2HttpServer(eventStore, options, 5, socketDelayCheck)
 
     val response = { uuid: String ->
-        val responseMessage = message("Response", Direction.FIRST, "somealias").apply {
+        val responseMessage = message(DUMMY_BOOK, "Response", Direction.FIRST, "somealias").apply {
             addField("code", 200)
             addField("reason", "Test reason")
             parentEventId = EventID.getDefaultInstance()
@@ -118,6 +118,10 @@ open class TestServerManager(private val https: Boolean = false, socketDelayChec
         } finally {
             clients.forEach { it.close() }
         }
+    }
+
+    companion object {
+        const val DUMMY_BOOK = "dummyBook"
     }
 
 }

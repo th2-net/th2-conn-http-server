@@ -14,6 +14,7 @@
 
 package com.exactpro.th2.httpserver.server
 
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.httpserver.server.options.ServerOptions
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import com.google.protobuf.TextFormat
@@ -33,7 +34,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 
 internal class Th2HttpServer(
-    private val eventStore: (name: String, eventId: String?, throwable: Throwable?)->String,
+    private val eventStore: (name: String, eventId: EventID?, throwable: Throwable?)->String,
     private val options: ServerOptions,
     private val terminationTime: Long,
     socketDelayCheck: Long
@@ -85,7 +86,7 @@ internal class Th2HttpServer(
      * https://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01#Connection
      * Please use it as reference in discussions and logic reworks
      */
-    private fun handle(client: Socket, parentEventId: String) {
+    private fun handle(client: Socket, parentEventId: EventID) {
         var request: RawHttpRequest
         var isClosing = false
         while (!isClosing) {
@@ -151,8 +152,8 @@ internal class Th2HttpServer(
             }
         }.onFailure {
             when (it) {
-                is SocketException -> onError("Failed to handle response uuid: $uuid, socket is broken. $socket", th2Response.eventId.id, it)
-                else -> onError("Can't handle response uuid: $uuid", th2Response.eventId.id, it)
+                is SocketException -> onError("Failed to handle response uuid: $uuid, socket is broken. $socket", th2Response.eventId, it)
+                else -> onError("Can't handle response uuid: $uuid", th2Response.eventId, it)
             }
         }
         closeBodyOf(response)
@@ -182,7 +183,7 @@ internal class Th2HttpServer(
         }
     }
 
-    private fun onError(name: String, eventId: String? = null, throwable: Throwable) : String {
+    private fun onError(name: String, eventId: EventID? = null, throwable: Throwable) : String {
         if (!listen) {
             LOGGER.warn(throwable) { "$eventId: $name"  }
         } else {

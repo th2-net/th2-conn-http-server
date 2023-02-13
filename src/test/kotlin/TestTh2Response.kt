@@ -186,7 +186,7 @@ class TestTh2Response {
         headType: String = "Response",
         bonusHeaders: List<Header>? = null
     ): Message {
-        return message(headType, Direction.FIRST, "test").apply {
+        return message(DUMMY_BOOK, headType, Direction.FIRST, "test").apply {
             code?.let { this.addField("code", code) }
             reason?.let { this.addField("reason", reason) }
             this.metadataBuilder.protocol = "http"
@@ -206,6 +206,10 @@ class TestTh2Response {
             if (contentType != null) this.metadata = metadataBuilder.putProperties("contentType", contentType).build()
 
         }.build()
+    }
+
+    companion object {
+        const val DUMMY_BOOK = "dummyBook"
     }
 
 }
