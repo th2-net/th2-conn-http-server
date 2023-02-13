@@ -121,3 +121,11 @@ spec:
 2) `keytool -export -alias servertest -storepass servertest -file servertest.cer -keystore servertest` - to export certificate file outside keystore
 
 3) `keytool -import -file servertest.cer -alias servertest -keystore TestTrustStore` - to import certificate inside of trust store
+
+
+# Release notes
+
+## 0.3.0
++ Vulnerability check dependency step
++ th2-common ugrade to `3.44.0`
++ th2-bom upgrade to `4.1.0`
