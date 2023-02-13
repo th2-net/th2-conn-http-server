@@ -67,7 +67,7 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions {
         }
     }
 
-    override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) {
+    override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: EventID) {
         queue.add(uuid)
     }
 
@@ -75,8 +75,8 @@ class TestServerOptions(private val https: Boolean = false) : ServerOptions {
 
     }
 
-    override fun onConnect(client: Socket): String {
-        return "TestEventID"
+    override fun onConnect(client: Socket): EventID {
+        return EventID.getDefaultInstance()
     }
 
 }

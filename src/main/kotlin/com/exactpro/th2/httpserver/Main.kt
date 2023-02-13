@@ -18,6 +18,7 @@ import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.EventBatch
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageListener
@@ -75,7 +76,8 @@ class Main {
                 settings,
                 responseManager,
                 factory.eventBatchRouter,
-                factory.messageRouterMessageGroupBatch
+                factory.messageRouterMessageGroupBatch,
+                factory.rootEventId
             ) { resource, destructor ->
                 resources += resource to destructor
             }
@@ -89,16 +91,10 @@ class Main {
             responseManager: IResponseManager,
             eventRouter: MessageRouter<EventBatch>,
             messageRouter: MessageRouter<MessageGroupBatch>,
+            rootEventId: EventID,
             registerResource: (name: String, destructor: () -> Unit) -> Unit
         ) {
             val connectionId = ConnectionID.newBuilder().setSessionAlias(settings.sessionAlias).build()
-
-
-            val rootEventId = eventRouter.storeEvent(Event.start().apply {
-                endTimestamp()
-                name("HTTP SERVER | alias: \"${settings.sessionAlias}\" | ${Instant.now()}")
-                type("Microservice")
-            }).id
 
             val options = Th2ServerOptions(
                 settings,
@@ -117,7 +113,7 @@ class Main {
                 )
             }
 
-            val serverEventStore = { name: String, eventId: String?, throwable: Throwable? ->
+            val serverEventStore = { name: String, eventId: EventID?, throwable: Throwable? ->
                 val type = if (throwable != null) "Error" else "Info"
                 val status = if (throwable != null) Event.Status.FAILED else Event.Status.PASSED
                 val event = Event.start().apply {
@@ -133,7 +129,6 @@ class Main {
                         error = error.cause
                     }
                 }
-
                 eventRouter.storeEvent(event, eventId ?: rootEventId).id
             }
 

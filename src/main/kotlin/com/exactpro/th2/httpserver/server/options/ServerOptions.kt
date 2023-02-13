@@ -14,6 +14,7 @@
 
 package com.exactpro.th2.httpserver.server.options
 
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.httpserver.server.responses.Th2Response
 import rawhttp.core.RawHttp
 import rawhttp.core.RawHttpOptions
@@ -55,7 +56,7 @@ interface ServerOptions {
      * Must be guaranteed to be thread-safe since it will be called from different threads
      *
      */
-    fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String)
+    fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: EventID)
 
     /**
      * Must be guaranteed to be thread-safe since it will be called from different threads
@@ -66,5 +67,5 @@ interface ServerOptions {
 
     fun onResponse(response: RawHttpResponse<Th2Response>)
 
-    fun onConnect(client: Socket) : String
+    fun onConnect(client: Socket) : EventID
 }

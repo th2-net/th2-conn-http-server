@@ -18,6 +18,7 @@ import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.EventBatch
+import com.exactpro.th2.common.grpc.EventID
 import com.exactpro.th2.common.grpc.MessageGroupBatch
 import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.schema.message.MessageRouter
@@ -48,7 +49,7 @@ import javax.net.ssl.SSLContext
 class Th2ServerOptions(
     private val settings: MicroserviceSettings,
     private val eventRouter: MessageRouter<EventBatch>,
-    private val rootEventID: String,
+    private val rootEventID: EventID,
     private val connectionID: ConnectionID,
     private val messageRouter: MessageRouter<MessageGroupBatch>
 ) : ServerOptions {
@@ -97,8 +98,8 @@ class Th2ServerOptions(
         }
     }
 
-    override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: String) {
-        val rawMessage = request.toRawMessage(connectionID, generateSequenceRequest(), uuid, parentEventID)
+    override fun onRequest(request: RawHttpRequest, uuid: String, parentEventID: EventID) {
+        val rawMessage = request.toRawMessage(connectionID, generateSequenceRequest(), uuid, parentEventID.id)
 
         messageRouter.sendAll(rawMessage.toBatch(), QueueAttribute.SECOND.toString())
 
@@ -116,11 +117,11 @@ class Th2ServerOptions(
         messageRouter.sendAll(rawMessage.toBatch(), QueueAttribute.FIRST.toString())
 
         val th2Response = response.libResponse.get()
-        val eventId = eventRouter.storeEvent("Sent HTTP response", th2Response.eventId.id, th2Response.uuid, th2Response.messagesId)
+        val eventId = eventRouter.storeEvent("Sent HTTP response", th2Response.eventId, th2Response.uuid, th2Response.messagesId)
         logger.info { "$eventId: Sent HTTP response: \n$response" }
     }
 
-    override fun onConnect(client: Socket): String {
+    override fun onConnect(client: Socket): EventID {
         val msg = "Connected client: $client"
         val eventId = eventRouter.storeEvent(msg, rootEventID, null)
         logger.info { "$eventId: $msg" }
@@ -131,7 +132,7 @@ class Th2ServerOptions(
         AtomicLong(epochSecond * TimeUnit.SECONDS.toNanos(1) + nano)
     }::incrementAndGet
 
-    private fun MessageRouter<EventBatch>.storeEvent(name: String, eventId: String, uuid: String?, messagesId: List<MessageID>? = null): String {
+    private fun MessageRouter<EventBatch>.storeEvent(name: String, eventId: EventID, uuid: String?, messagesId: List<MessageID>? = null): EventID {
         val type = if (uuid != null) "Info" else "Connection"
         val status = Event.Status.PASSED
         val event = Event.start().apply {
@@ -145,7 +146,6 @@ class Th2ServerOptions(
         }
 
         storeEvent(event, eventId)
-
-        return event.id
+        return EventUtils.toEventID(event.startTimestamp, eventId.bookName, eventId.scope, event.id)
     }
 }
