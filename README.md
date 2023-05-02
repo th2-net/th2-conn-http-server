@@ -1,4 +1,4 @@
-# HTTP SERVER v0.2.0
+# HTTP SERVER v0.3.0
 
 This microservice allows performing HTTP responses and receive HTTP requests.
 
@@ -15,6 +15,7 @@ Main configuration is done via setting following properties in a custom configur
 + **keystorePath** - path to new keystore (by default its using one from resources)
 + **keystoreType** - type of keystore (`JKS` by default)
 + **keyManagerAlgorithm** - type of keystore algorithm (`SunX509` by default)
++ **reportClientClosingConnection** - This option determines whether to publish an event when the connection is closed by client. Default value: `false`. 
 
 ## NOTE
 

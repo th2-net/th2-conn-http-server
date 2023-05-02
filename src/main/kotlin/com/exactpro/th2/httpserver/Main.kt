@@ -155,7 +155,7 @@ class Main {
                 throw IllegalStateException("Failed to subscribe to input queue", it)
             }
 
-            val server = Th2HttpServer(serverEventStore, options, settings.terminationTime, settings.socketDelayCheck).apply {
+            val server = Th2HttpServer(serverEventStore, options, settings.terminationTime, settings.reportClientClosingConnection, settings.socketDelayCheck).apply {
                 registerResource("server", ::stop)
             }
 
@@ -182,7 +182,8 @@ class Main {
             val keystorePass: String = "",
             val keystorePath: String = "",
             val keystoreType: String = "JKS",
-            val keyManagerAlgorithm: String = "SunX509"
+            val keyManagerAlgorithm: String = "SunX509",
+            val reportClientClosingConnection: Boolean = false
         )
 
         private inline fun <reified T> load(defaultImpl: Class<out T>): T {
