@@ -19,6 +19,7 @@ plugins {
     id 'com.palantir.docker' version '0.25.0'
     id 'org.jetbrains.kotlin.jvm' version "${kotlin_version}"
     id 'org.jetbrains.kotlin.kapt' version "${kotlin_version}"
+    id "org.owasp.dependencycheck" version "8.1.2"
 }
 
 apply plugin: 'kotlin'
@@ -166,9 +167,9 @@ signing {
 }
 
 dependencies {
-    api platform('com.exactpro.th2:bom:4.1.0')
+    api platform('com.exactpro.th2:bom:4.2.0')
 
-    implementation 'com.exactpro.th2:common:3.44.0'
+    implementation 'com.exactpro.th2:common:3.44.1'
 
     implementation 'org.slf4j:slf4j-api'
 
@@ -223,6 +224,17 @@ compileTestKotlin {
 
 test {
     useJUnitPlatform()
+}
+
+dependencyCheck {
+    formats = ['SARIF', 'JSON', 'HTML']
+    failBuildOnCVSS = 5
+
+    analyzers {
+        assemblyEnabled = false
+        nugetconfEnabled = false
+        nodeEnabled = false
+    }
 }
 
 

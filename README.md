@@ -127,5 +127,6 @@ spec:
 
 ## 0.3.0
 + Vulnerability check dependency step
-+ th2-common ugrade to `3.44.0`
-+ th2-bom upgrade to `4.1.0`
++ Owasp vulnerabilities check
++ th2-common ugrade to `3.44.2`
++ th2-bom upgrade to `4.2.0`
