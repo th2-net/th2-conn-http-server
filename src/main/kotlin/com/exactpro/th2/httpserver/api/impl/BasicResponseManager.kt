@@ -20,9 +20,11 @@ import com.exactpro.th2.common.message.toJson
 import com.exactpro.th2.httpserver.api.IResponseManager
 import com.exactpro.th2.httpserver.api.IResponseManager.ResponseManagerContext
 import com.exactpro.th2.httpserver.server.responses.Th2Response
+import com.google.auto.service.AutoService
 import mu.KotlinLogging
 import rawhttp.core.RawHttpResponse
 
+@AutoService(IResponseManager::class)
 class BasicResponseManager : IResponseManager {
 
     private val logger = KotlinLogging.logger {}

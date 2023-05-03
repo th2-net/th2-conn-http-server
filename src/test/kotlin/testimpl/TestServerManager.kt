@@ -46,7 +46,7 @@ open class TestServerManager(private val https: Boolean = false, socketDelayChec
         }
         Event.start().id
     }
-    private val th2server = Th2HttpServer(eventStore, options, 5, socketDelayCheck)
+    private val th2server = Th2HttpServer(eventStore, options, 5, false, socketDelayCheck)
 
     val response = { uuid: String ->
         val responseMessage = message("Response", Direction.FIRST, "somealias").apply {

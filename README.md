@@ -1,4 +1,4 @@
-# HTTP SERVER v0.3.0
+# HTTP SERVER v0.4.0
 
 This microservice allows performing HTTP responses and receive HTTP requests.
 
@@ -122,3 +122,15 @@ spec:
 2) `keytool -export -alias servertest -storepass servertest -file servertest.cer -keystore servertest` - to export certificate file outside keystore
 
 3) `keytool -import -file servertest.cer -alias servertest -keystore TestTrustStore` - to import certificate inside of trust store
+
+
+# Release notes
+
+## 0.4.0
++ handle http connection close without clue `Connection` in connection header
+
+## 0.3.0
++ Vulnerability check dependency step
++ Owasp vulnerabilities check
++ th2-common ugrade to `3.44.2`
++ th2-bom upgrade to `4.2.0`
