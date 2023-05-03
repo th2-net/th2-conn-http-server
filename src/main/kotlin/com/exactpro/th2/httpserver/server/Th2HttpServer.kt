@@ -199,7 +199,7 @@ internal class Th2HttpServer(
     }
 
     private fun onInfo(name: String, eventId: String? = null): String {
-        LOGGER.warn { "${eventId}: $name" }
+        LOGGER.info { "${eventId}: $name" }
         return eventStore (name, eventId, null)
     }
 
