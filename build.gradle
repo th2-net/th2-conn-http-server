@@ -18,7 +18,8 @@ plugins {
     id 'signing'
     id 'com.palantir.docker' version '0.25.0'
     id 'org.jetbrains.kotlin.jvm' version "${kotlin_version}"
-    id "com.github.harbby.gradle.serviceloader" version '1.1.5'
+    id 'org.jetbrains.kotlin.kapt' version "${kotlin_version}"
+    id "org.owasp.dependencycheck" version "8.1.2"
 }
 
 apply plugin: 'kotlin'
@@ -166,11 +167,10 @@ signing {
 }
 
 dependencies {
-    api platform('com.exactpro.th2:bom:3.1.0')
+    api platform('com.exactpro.th2:bom:4.2.0')
 
-    implementation 'com.exactpro.th2:common:3.31.5'
+    implementation 'com.exactpro.th2:common:3.44.1'
 
-    implementation 'org.slf4j:slf4j-log4j12'
     implementation 'org.slf4j:slf4j-api'
 
     implementation group: 'org.jetbrains.kotlin', name: 'kotlin-stdlib-jdk8', version: kotlin_version
@@ -180,6 +180,14 @@ dependencies {
     implementation group: 'com.fasterxml.jackson.module', name: 'jackson-module-kotlin', version: '2.11.2'
 
     testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter', version: '5.6.0'
+
+    compileOnly 'com.google.auto.service:auto-service:1.0.1'
+    annotationProcessor 'com.google.auto.service:auto-service:1.0.1'
+    kapt 'com.google.auto.service:auto-service:1.0.1'
+}
+
+dependencyLocking {
+    lockAllConfigurations()
 }
 
 application {
@@ -214,12 +222,19 @@ compileTestKotlin {
     }
 }
 
-serviceLoader {
-    serviceInterface 'com.exactpro.th2.httpserver.api.IResponseManager'
-}
-
 test {
     useJUnitPlatform()
+}
+
+dependencyCheck {
+    formats = ['SARIF', 'JSON', 'HTML']
+    failBuildOnCVSS = 5
+
+    analyzers {
+        assemblyEnabled = false
+        nugetconfEnabled = false
+        nodeEnabled = false
+    }
 }
 
 
