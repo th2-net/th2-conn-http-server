@@ -90,8 +90,13 @@ internal class Th2HttpServer(
         var isClosing = false
         while (!isClosing) {
             runCatching {
+                val clientInputStream = client.getInputStream()
+                if(!client.isConnected || client.isClosed || client.isInputShutdown) {
+                    onInfo("Client closed connection: $socket", parentEventId)
+                    return
+                }
                 request = http.parseRequest(
-                    client.getInputStream(),
+                    clientInputStream,
                     (client.remoteSocketAddress as InetSocketAddress).address
                 )
                 val uuid = UUID.randomUUID().toString()
@@ -102,17 +107,18 @@ internal class Th2HttpServer(
                 }
 
                 when {
+                    request.startLine.httpVersion == HttpVersion.HTTP_1_1 -> {
+                        request.headers.getFirst("Connection").ifPresent {
+                            isClosing = it.equals("close", true)
+                        }
+                    }
                     request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1) -> {
-                        isClosing=true
+                        isClosing = true
                         request.headers.getFirst("Connection").ifPresent {
                             isClosing = !it.equals("keep-alive", true)
                         }
                     }
-                    else -> {
-                        request.headers.getFirst("Connection").let {
-                            isClosing = it.isPresent && it.get().equals("close", true)
-                        }
-                    }
+                    else -> { /* HTTP/2 not applicable */ }
                 }
 
                 client.keepAlive = !isClosing
@@ -189,6 +195,11 @@ internal class Th2HttpServer(
             LOGGER.error(throwable) { "$eventId: $name" }
         }
         return eventStore (name, eventId, throwable)
+    }
+
+    private fun onInfo(name: String, eventId: String? = null): String {
+        LOGGER.info { "${eventId}: $name" }
+        return eventStore (name, eventId, null)
     }
 
     private fun ExecutorService.awaitShutdown(terminationTime: Long, onTimeout: () -> Unit) {

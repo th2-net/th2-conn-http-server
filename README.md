@@ -1,4 +1,4 @@
-# HTTP SERVER v0.2.0
+# HTTP SERVER v0.4.0
 
 This microservice allows performing HTTP responses and receive HTTP requests.
 
@@ -14,7 +14,7 @@ Main configuration is done via setting following properties in a custom configur
 + **sslProtocol** - protocol for https connection (`TLSv1.3` by default)
 + **keystorePath** - path to new keystore (by default its using one from resources)
 + **keystoreType** - type of keystore (`JKS` by default)
-+ **keyManagerAlgorithm** - type of keystore algorithm (`SunX509` by default)
++ **keyManagerAlgorithm** - type of keystore algorithm (`SunX509` by default) 
 
 ## NOTE
 
@@ -124,6 +124,9 @@ spec:
 
 
 # Release notes
+
+## 0.4.0
++ handle http connection close without clue `Connection` in connection header
 
 ## 0.3.0
 + Vulnerability check dependency step
