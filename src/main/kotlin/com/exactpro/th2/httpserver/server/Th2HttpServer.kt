@@ -36,7 +36,6 @@ internal class Th2HttpServer(
     private val eventStore: (name: String, eventId: String?, throwable: Throwable?)->String,
     private val options: ServerOptions,
     private val terminationTime: Long,
-    private val reportClientClosingConnection: Boolean,
     socketDelayCheck: Long
 ) : HttpServer {
 
@@ -93,9 +92,7 @@ internal class Th2HttpServer(
             runCatching {
                 val clientInputStream = client.getInputStream()
                 if(!client.isConnected || client.isClosed || client.isInputShutdown) {
-                    if(reportClientClosingConnection) {
-                        onInfo("Client closed connection: $socket", parentEventId)
-                    }
+                    onInfo("Client closed connection: $socket", parentEventId)
                     return
                 }
                 request = http.parseRequest(
@@ -111,15 +108,14 @@ internal class Th2HttpServer(
 
                 when {
                     request.startLine.httpVersion == HttpVersion.HTTP_1_1 -> {
-                        isClosing=true
                         request.headers.getFirst("Connection").ifPresent {
-                            isClosing = !it.equals("keep-alive", true)
+                            isClosing = it.equals("close", true)
                         }
                     }
                     request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1) -> {
                         isClosing = true
                         request.headers.getFirst("Connection").ifPresent {
-                            isClosing = it.equals("close", true)
+                            isClosing = !it.equals("keep-alive", true)
                         }
                     }
                     else -> { /* HTTP/2 not applicable */ }

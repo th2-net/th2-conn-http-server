@@ -14,8 +14,7 @@ Main configuration is done via setting following properties in a custom configur
 + **sslProtocol** - protocol for https connection (`TLSv1.3` by default)
 + **keystorePath** - path to new keystore (by default its using one from resources)
 + **keystoreType** - type of keystore (`JKS` by default)
-+ **keyManagerAlgorithm** - type of keystore algorithm (`SunX509` by default)
-+ **reportClientClosingConnection** - This option determines whether to publish an event when the connection is closed by client. Default value: `false`. 
++ **keyManagerAlgorithm** - type of keystore algorithm (`SunX509` by default) 
 
 ## NOTE
 

@@ -43,6 +43,7 @@ class TestHTTPSResponseNew {
         val request = RawHttp().parseRequest(
             """
             GET / HTTP/1.1
+            Connection: close
             Host: localhost:${GlobalVariables.PORT}
             User-Agent: client RawHTTP
             """.trimIndent()
