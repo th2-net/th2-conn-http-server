@@ -91,6 +91,7 @@ internal class Th2HttpServer(
         var isClosing = false
         while (!isClosing) {
             runCatching {
+                val clientInputStream = client.getInputStream()
                 if(!client.isConnected || client.isClosed || client.isInputShutdown) {
                     if(reportClientClosingConnection) {
                         onInfo("Client closed connection: $socket", parentEventId)
@@ -98,7 +99,7 @@ internal class Th2HttpServer(
                     return
                 }
                 request = http.parseRequest(
-                    client.getInputStream(),
+                    clientInputStream,
                     (client.remoteSocketAddress as InetSocketAddress).address
                 )
                 val uuid = UUID.randomUUID().toString()
