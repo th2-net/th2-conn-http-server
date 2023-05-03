@@ -110,17 +110,18 @@ internal class Th2HttpServer(
                 }
 
                 when {
-                    request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_0) -> {
+                    request.startLine.httpVersion == HttpVersion.HTTP_1_1 -> {
                         isClosing=true
                         request.headers.getFirst("Connection").ifPresent {
                             isClosing = !it.equals("keep-alive", true)
                         }
                     }
-                    else -> {
+                    request.startLine.httpVersion.isOlderThan(HttpVersion.HTTP_1_1) -> {
                         request.headers.getFirst("Connection").let {
                             isClosing = it.isPresent && it.get().equals("close", true)
                         }
                     }
+                    else -> { /* HTTP/2 not applicable */ }
                 }
 
                 client.keepAlive = !isClosing
